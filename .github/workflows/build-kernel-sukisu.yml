@@ -3,11 +3,6 @@ name: Build Kernel
 on:
   workflow_dispatch:
     inputs:
-      enable_feature_kpm:
-        description: "是否启用kpm (需要开启susfs)"
-        required: false
-        default: false
-        type: boolean
       SOURCECODE_BRANCH:
         description: '源码分支名称或修订版'
         required: true

@@ -96,22 +96,7 @@ jobs:
       - name: Patch Kernel
         working-directory: kernel
         run: |
-          patch -p1 < $GITHUB_WORKSPACE/Patches/susfs-syscall-hooks.patch
-          patch -p1 < $GITHUB_WORKSPACE/Patches/static-symbol-export.patch
           patch -p1 < $GITHUB_WORKSPACE/Patches/fix_restore_cgroup_file_prefix_handling.patch
-
-      - name: Apply KernelPatch for SUSFS
-        working-directory: kernel
-        run: |
-          patch -p1 < $GITHUB_WORKSPACE/susfs_patch/Patches/susfs_patch_to_4.14.patch || true
-          patch -p1 < $GITHUB_WORKSPACE/Patches/susfs_patch_taskmmu.patch
-          if [ "${{ inputs.SOURCECODE_BRANCH }}" = "T" ]; then
-            patch -p1 < $GITHUB_WORKSPACE/Patches/susfs_patch_base.patch
-            patch -p1 < $GITHUB_WORKSPACE/Patches/susfs_patch_fdinfo.patch
-            patch -p1 < $GITHUB_WORKSPACE/Patches/susfs_patch_readdir.patch
-          elif [ "${{ inputs.SOURCECODE_BRANCH }}" = "U-dev" ]; then
-            patch -p1 < $GITHUB_WORKSPACE/Patches/susfs_patch_newuname.patch
-          fi
 
       - name: Copy defconfig
         run: |

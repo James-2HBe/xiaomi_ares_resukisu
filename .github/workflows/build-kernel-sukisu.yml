@@ -12,10 +12,6 @@ on:
         description: '源码分支名称或修订版'
         required: true
         default: 'U-dev'
-      SUKISU_BRANCH:
-        description: 'ReSukiSU 分支名称或修订版'
-        required: true
-        default: 'main'
 
 jobs:
   build:
@@ -67,31 +63,6 @@ jobs:
           wget -q https://github.com/Mandi-Sa/clang/releases/download/amd64-kernel-arm_static-23/llvm23.0.0-binutils2.45.1_amd64-kernel-arm_static-20260224.7z
           7za x llvm23.0.0-binutils2.45.1_amd64-kernel-arm_static-20260224.7z
           rm llvm23.0.0-binutils2.45.1_amd64-kernel-arm_static-20260224.7z
-      
-      - name: Set up ReSukiSU
-        working-directory: kernel
-        run: |
-          echo DATE=$(date +%F) >> $GITHUB_ENV
-          export BRANCH=${{ inputs.SUKISU_BRANCH }}
-          curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh" | bash -s $BRANCH
-          cd ./KernelSU
-          export KSU_VERSION=$(expr $(/usr/bin/git rev-list --count main) "+" 30000 "+" 700)
-          echo "KSUVER=$KSU_VERSION" >> $GITHUB_ENV
-          sed -i "s/DKSU_VERSION=12800/DKSU_VERSION=${KSU_VERSION}/" kernel/Makefile
-
-      - name: Get SukiSU Patches
-        uses: actions/checkout@v5
-        with:
-          repository: SukiSU-Ultra/SukiSU_patch
-          path: sukisu_patch
-
-      - name: Get susfs patch
-        uses: actions/checkout@v5
-        with:
-          repository: James-2HBe/xiaomi_ares_sukisu
-          sparse-checkout: Patches
-          ref: main
-          path: susfs_patch
 
       - name: Patch Kernel
         working-directory: kernel
@@ -100,11 +71,6 @@ jobs:
 
       - name: Copy defconfig
         run: |
-          if [ "${{ inputs.enable_feature_kpm }}" = "true" ]; then
-            echo "CONFIG_KALLSYMS_ALL=y" >> $GITHUB_WORKSPACE/Patches/ares_user_defconfig_append
-            echo "CONFIG_KPM=y" >> $GITHUB_WORKSPACE/Patches/ares_user_defconfig_append
-          fi
-          echo "CONFIG_KSU_MANUAL_HOOK=y" >> $GITHUB_WORKSPACE/Patches/ares_user_defconfig_append
           cat $GITHUB_WORKSPACE/Patches/ares_user_defconfig_append >> $GITHUB_WORKSPACE/kernel/arch/arm64/configs/ares_defconfig
       
       - name: Build Kernel for K40GE

@@ -56,8 +56,8 @@ jobs:
       - name: Get Kernel Source Code
         uses: actions/checkout@v5
         with:
-          repository: Tkpointz/android_kernel_aresin
-          ref: ${{ inputs.SOURCECODE_BRANCH }}
+          repository: James-2HBe/kernel_mt6893
+          ref: chopin_kvm
           path: kernel
       
       - name: Setup Cross-compile toolchain

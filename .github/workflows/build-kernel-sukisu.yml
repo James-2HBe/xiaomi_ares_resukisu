@@ -1,4 +1,4 @@
-name: Build Kernel -- ReSukiSU with susfs
+name: Build Kernel
 
 on:
   workflow_dispatch:

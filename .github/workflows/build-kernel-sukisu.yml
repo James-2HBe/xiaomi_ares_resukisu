@@ -103,7 +103,7 @@ jobs:
       - name: Apply KernelPatch for SUSFS
         working-directory: kernel
         run: |
-          patch -p1 < $GITHUB_WORKSPACE/susfs_patch/Patches/Patch/susfs_patch_to_4.14.patch || true
+          patch -p1 < $GITHUB_WORKSPACE/Patches/susfs_patch_to_4.14.patch || true
           patch -p1 < $GITHUB_WORKSPACE/Patches/susfs_patch_taskmmu.patch
           if [ "${{ inputs.SOURCECODE_BRANCH }}" = "T" ]; then
             patch -p1 < $GITHUB_WORKSPACE/Patches/susfs_patch_base.patch
@@ -120,7 +120,7 @@ jobs:
             echo "CONFIG_KPM=y" >> $GITHUB_WORKSPACE/Patches/ares_user_defconfig_append
           fi
           echo "CONFIG_KSU_MANUAL_HOOK=y" >> $GITHUB_WORKSPACE/Patches/ares_user_defconfig_append
-          cat $GITHUB_WORKSPACE/Patches/ares_user_defconfig_append >> $GITHUB_WORKSPACE/kernel/arch/arm64/configs/ares_user_defconfig
+          cat $GITHUB_WORKSPACE/Patches/ares_user_defconfig_append >> $GITHUB_WORKSPACE/kernel/arch/arm64/configs/ares_defconfig
       
       - name: Build Kernel for K40GE
         working-directory: kernel
@@ -132,7 +132,7 @@ jobs:
         run: |
           export KBUILD_BUILD_TIMESTAMP=$(date)
           export PATH=/usr/lib/ccache:$GITHUB_WORKSPACE/toolchain/bin:$PATH
-          make -j$(nproc --all) ${args} ares_user_defconfig all
+          make -j$(nproc --all) ${args} ares_defconfig all
       
       - name: Apply KernelPatch for KPM
         if: ${{ inputs.enable_feature_kpm }}

@@ -98,6 +98,7 @@ jobs:
         run: |
           patch -p1 < $GITHUB_WORKSPACE/Patches/susfs-syscall-hooks.patch
           patch -p1 < $GITHUB_WORKSPACE/Patches/static-symbol-export.patch
+          patch -p1 < $GITHUB_WORKSPACE/Patches/fix_restore_cgroup_file_prefix_handling.patch
 
       - name: Apply KernelPatch for SUSFS
         working-directory: kernel

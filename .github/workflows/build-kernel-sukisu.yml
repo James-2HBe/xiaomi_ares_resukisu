@@ -91,7 +91,7 @@ jobs:
           repository: James-2HBe/xiaomi_ares_sukisu
           sparse-checkout: Patches
           ref: main
-          path: susfs_patch
+          path: Patches
 
       - name: Patch Kernel
         working-directory: kernel

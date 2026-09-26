@@ -88,9 +88,9 @@ jobs:
       - name: Get susfs patch
         uses: actions/checkout@v5
         with:
-          repository: JackA1ltman/NonGKI_Kernel_Build_2nd
-          sparse-checkout: Patches/Patch
-          ref: mainline
+          repository: James-2HBe/xiaomi_ares_sukisu
+          sparse-checkout: Patches
+          ref: main
           path: susfs_patch
 
       - name: Patch Kernel
@@ -158,3 +158,10 @@ jobs:
           name: K40GE_SukiSU_${{ env.KSUVER }}
           path: Magiskboot/boot_SukiSU_${{ env.KSUVER }}.img
           compression-level: 9
+
+      - name: Upload rejects
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+           name: patch-rejects
+           path: '**/*.rej'

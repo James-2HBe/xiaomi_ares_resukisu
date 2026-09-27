@@ -6,7 +6,7 @@ on:
       SOURCECODE_BRANCH:
         description: '源码分支名称或修订版'
         required: true
-        default: 'U-dev'
+        default: 'chopin_kvm'
 
 jobs:
   build:

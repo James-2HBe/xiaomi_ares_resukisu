@@ -1,4 +1,4 @@
-CONFIG_KSU=y
+CONFIG_BBG=y
 
 # Add Droidspaces Support
 # Kernel configurations for full DroidSpaces support

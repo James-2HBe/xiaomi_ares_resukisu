@@ -107,13 +107,13 @@ jobs:
             chmod +x magiskboot
             ./magiskboot unpack boot.img
             cp $GITHUB_WORKSPACE/kernel/out/arch/arm64/boot/Image ./kernel
-            ./magiskboot repack boot.img boot_SukiSU_${{ env.KSUVER }}.img
+            ./magiskboot repack boot.img boot_KSU_${{ env.KSUVER }}.img
 
       - name: Upload repacked boot image
         uses: actions/upload-artifact@v4
         with:
-          name: K40GE_SukiSU_${{ env.KSUVER }}
-          path: Magiskboot/boot_SukiSU_${{ env.KSUVER }}.img
+          name: K40GE_KSU_${{ env.KSUVER }}
+          path: Magiskboot/boot_KSU_${{ env.KSUVER }}.img
           compression-level: 9
 
       - name: Upload rejects

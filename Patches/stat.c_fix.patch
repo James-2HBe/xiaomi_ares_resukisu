@@ -11,7 +11,7 @@ index 068fdbcc9e26..5348b7bb9db2 100644
 +#endif
  int vfs_fstatat(int dfd, const char __user *filename, struct kstat *stat,
  		int flag)
- {
+ 
 @@ -94,6 +96,8 @@ int vfs_fstatat(int dfd, const char __user *filename, struct kstat *stat,
  	int error = -EINVAL;
  	unsigned int lookup_flags = 0;

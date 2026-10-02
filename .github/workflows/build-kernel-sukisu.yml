@@ -64,6 +64,11 @@ jobs:
         run: |
           patch -p1 < $GITHUB_WORKSPACE/Patches/fix_restore_cgroup_file_prefix_handling.patch
 
+      - name: Setup KSU
+        run: |
+          cd /home/runner/work/xiaomi_ares_sukisu/xiaomi_ares_sukisu/kernel
+          curl -LSs "https://raw.githubusercontent.com/rsuntk/KernelSU/main/kernel/setup.sh" | bash -
+
       - name: Setup BBG
         run: |
           cd /home/runner/work/xiaomi_ares_sukisu/xiaomi_ares_sukisu/kernel

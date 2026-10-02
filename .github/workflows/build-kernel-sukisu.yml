@@ -64,6 +64,15 @@ jobs:
         run: |
           patch -p1 < $GITHUB_WORKSPACE/Patches/fix_restore_cgroup_file_prefix_handling.patch
           patch -p1 < $GITHUB_WORKSPACE/Patches/static-symbol-export.patch
+          patch -p1 < $GITHUB_WORKSPACE/Patches/stat.c_fix.patch
+          patch -p1 < $GITHUB_WORKSPACE/Patches/backprot.patch
+          patch -p1 < $GITHUB_WORKSPACE/Patches/exec_fix.patch
+          patch -p1 < $GITHUB_WORKSPACE/Patches/fix_pm.patch
+          patch -p1 < $GITHUB_WORKSPACE/Patches/fix_stat_2.patch
+          patch -p1 < $GITHUB_WORKSPACE/Patches/open_fix.patch
+          patch -p1 < $GITHUB_WORKSPACE/Patches/open.c_fix.patch
+          patch -p1 < $GITHUB_WORKSPACE/Patches/read_write.patch
+          patch -p1 < $GITHUB_WORKSPACE/Patches/safemode.patch
 
       - name: Setup KSU
         run: |
@@ -84,7 +93,7 @@ jobs:
         working-directory: kernel
         env:
           args: |+
-            LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu-
+            LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-liopen_fix.patchnux-gnu-
             CROSS_COMPILE_ARM32=arm-linux-gnueabi- CROSS_COMPILE_COMPAT=arm-linux-gnueabi-
             CC=clang LD=ld.lld HOSTLD=ld.lld O=out KCFLAGS+=-O2 KCFLAGS_PERF+=-O3
         run: |

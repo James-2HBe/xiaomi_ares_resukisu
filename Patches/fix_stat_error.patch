@@ -1,0 +1,8 @@
+--- a/fs/stat.c
++++ b/fs/stat.c
+@@ -393,1 +393,1 @@
+-    ksu_handle_newfstat_ret(&fd, &statbuf);
++//    ksu_handle_newfstat_ret(&fd, &statbuf);
+@@ -516,1 +516,1 @@
+-    ksu_handle_fstat64_ret(&fd, &statbuf);
++//    ksu_handle_fstat64_ret(&fd, &statbuf);

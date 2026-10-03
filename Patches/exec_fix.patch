@@ -2,7 +2,7 @@ diff --git a/fs/exec.c b/fs/exec.c
 index ac59664eaecf..bdd585e1d2cc 100644
 --- a/fs/exec.c
 +++ b/fs/exec.c
-@@ -1890,11 +1890,23 @@ static int __do_execve_file(int fd, struct filename *filename,
+@@ -1890,10 +1890,23 @@ static int __do_execve_file(int fd, struct filename *filename,
  	return retval;
  }
 

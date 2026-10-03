@@ -1,8 +1,21 @@
 --- a/fs/stat.c
 +++ b/fs/stat.c
-@@ -393,1 +393,1 @@
+@@ -390,7 +390,7 @@
+             error = cp_new_stat(&stat, statbuf);
+ 
+ #ifdef CONFIG_KSU_MANUAL_HOOK
 -    ksu_handle_newfstat_ret(&fd, &statbuf);
 +//    ksu_handle_newfstat_ret(&fd, &statbuf);
-@@ -516,1 +516,1 @@
+ #endif
+     return error;
+ }
+@@ -513,7 +513,7 @@
+             error = cp_new_stat64(&stat, statbuf);
+ 
+ #ifdef CONFIG_KSU_MANUAL_HOOK // for 32-bit
 -    ksu_handle_fstat64_ret(&fd, &statbuf);
 +//    ksu_handle_fstat64_ret(&fd, &statbuf);
+ #endif
+     return error;
+ }
+ 

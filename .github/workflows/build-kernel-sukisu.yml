@@ -64,13 +64,6 @@ jobs:
         run: |
           patch -p1 < $GITHUB_WORKSPACE/Patches/fix_restore_cgroup_file_prefix_handling.patch
           patch -p1 < $GITHUB_WORKSPACE/Patches/static-symbol-export.patch
-          patch -p1 < $GITHUB_WORKSPACE/Patches/exec_fix.patch
-          patch -p1 < $GITHUB_WORKSPACE/Patches/fix_pm.patch
-          patch -p1 < $GITHUB_WORKSPACE/Patches/fix_stat_2.patch
-          patch -p1 < $GITHUB_WORKSPACE/Patches/open_fix.patch
-          patch -p1 < $GITHUB_WORKSPACE/Patches/open.c_fix.patch
-          patch -p1 < $GITHUB_WORKSPACE/Patches/read_write.patch
-          patch -p1 < $GITHUB_WORKSPACE/Patches/safemode.patch
 
       - name: Setup KSU
         run: |

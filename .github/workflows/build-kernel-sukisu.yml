@@ -66,9 +66,9 @@ jobs:
       - name: Apply patches
         run: |
           cd /home/runner/work/xiaomi_ares_sukisu/xiaomi_ares_sukisu/kernel
-          git apply --3way $GITHUB_WORKSPACE/Patches/fix_restore_cgroup_file_prefix_handling.patch
-          git apply --3way $GITHUB_WORKSPACE/Patches/susfs-syscall-hooks.patch
-          git apply --3way $GITHUB_WORKSPACE/Patches/static-symbol-export.patch
+          patch -p1 < $GITHUB_WORKSPACE/Patches/fix_restore_cgroup_file_prefix_handling.patch
+          patch -p1 < $GITHUB_WORKSPACE/Patches/susfs-syscall-hooks.patch
+          patch -p1 < $GITHUB_WORKSPACE/Patches/static-symbol-export.patch
 
       - name: Set up ReSukiSU
         working-directory: kernel

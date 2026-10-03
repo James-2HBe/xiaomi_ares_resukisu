@@ -7,6 +7,10 @@ on:
         description: '源码分支名称或修订版'
         required: true
         default: 'chopin_kvm'
+      SUKISU_BRANCH:
+        description: 'ReSukiSU 分支名称或修订版'
+        required: true
+        default: 'main'
 
 jobs:
   build:
@@ -63,20 +67,44 @@ jobs:
         working-directory: kernel
         run: |
           patch -p1 < $GITHUB_WORKSPACE/Patches/fix_restore_cgroup_file_prefix_handling.patch
+          patch -p1 < $GITHUB_WORKSPACE/Patches/susfs-syscall-hooks.patch
           patch -p1 < $GITHUB_WORKSPACE/Patches/static-symbol-export.patch
 
-      - name: Setup KSU
+      - name: Set up ReSukiSU
+        working-directory: kernel
         run: |
-          cd /home/runner/work/xiaomi_ares_sukisu/xiaomi_ares_sukisu/kernel
-          curl -LSs "https://raw.githubusercontent.com/rsuntk/KernelSU/main/kernel/setup.sh" | bash -
-          sed -i '/ksu_handle_newfstat_ret(/s/^/\/\//' fs/stat.c
-          sed -i '/ksu_handle_fstat64_ret(/s/^/\/\//' fs/stat.c
+          echo DATE=$(date +%F) >> $GITHUB_ENV
+          export BRANCH=${{ inputs.SUKISU_BRANCH }}
+          curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh" | bash -s $BRANCH
+          cd ./KernelSU
+          export KSU_VERSION=$(expr $(/usr/bin/git rev-list --count main) "+" 30000 "+" 700)
+          echo "KSUVER=$KSU_VERSION" >> $GITHUB_ENV
+          sed -i "s/DKSU_VERSION=12800/DKSU_VERSION=${KSU_VERSION}/" kernel/Makefile
+
+      - name: Get SukiSU Patches
+        uses: actions/checkout@v5
+        with:
+          repository: SukiSU-Ultra/SukiSU_patch
+          path: sukisu_patch
 
       - name: Setup BBG
         run: |
           cd /home/runner/work/xiaomi_ares_sukisu/xiaomi_ares_sukisu/kernel
           wget -O- https://github.com/vc-teahouse/Baseband-guard/raw/main/setup.sh | bash
           sed -i '/^config LSM$/,/^help$/{ /^[[:space:]]*default/ { /baseband_guard/! s/selinux/selinux,baseband_guard/ } }' security/Kconfig
+
+      - name: Apply KernelPatch for SUSFS
+        working-directory: kernel
+        run: |
+          patch -p1 < $GITHUB_WORKSPACE/susfs_patch/Patches/Patch/susfs_patch_to_4.14.patch || true
+          patch -p1 < $GITHUB_WORKSPACE/Patches/susfs_patch_taskmmu.patch
+          if [ "${{ inputs.SOURCECODE_BRANCH }}" = "chopin_kvm" ]; then
+            patch -p1 < $GITHUB_WORKSPACE/Patches/susfs_patch_base.patch
+            patch -p1 < $GITHUB_WORKSPACE/Patches/susfs_patch_fdinfo.patch
+            patch -p1 < $GITHUB_WORKSPACE/Patches/susfs_patch_readdir.patch
+          elif [ "${{ inputs.SOURCECODE_BRANCH }}" = "chopin_kvm" ]; then
+            patch -p1 < $GITHUB_WORKSPACE/Patches/susfs_patch_newuname.patch
+          fi
 
       - name: Copy defconfig
         run: |

@@ -64,12 +64,13 @@ jobs:
         run: |
           patch -p1 < $GITHUB_WORKSPACE/Patches/fix_restore_cgroup_file_prefix_handling.patch
           patch -p1 < $GITHUB_WORKSPACE/Patches/static-symbol-export.patch
-          patch -p1 < $GITHUB_WORKSPACE/Patches/fix_stat_error.patch
 
       - name: Setup KSU
         run: |
           cd /home/runner/work/xiaomi_ares_sukisu/xiaomi_ares_sukisu/kernel
           curl -LSs "https://raw.githubusercontent.com/rsuntk/KernelSU/main/kernel/setup.sh" | bash -
+          sed -i '/ksu_handle_newfstat_ret(/s/^/\/\//' fs/stat.c
+          sed -i '/ksu_handle_fstat64_ret(/s/^/\/\//' fs/stat.c
 
       - name: Setup BBG
         run: |

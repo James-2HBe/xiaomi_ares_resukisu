@@ -63,6 +63,14 @@ jobs:
           7za x llvm23.0.0-binutils2.45.1_amd64-kernel-arm_static-20260224.7z
           rm llvm23.0.0-binutils2.45.1_amd64-kernel-arm_static-20260224.7z
 
+      - name: Get susfs patch
+        uses: actions/checkout@v5
+        with:
+          repository: JackA1ltman/NonGKI_Kernel_Build_2nd
+          sparse-checkout: Patches/Patch
+          ref: mainline
+          path: susfs_patch
+
       - name: Apply patches
         run: |
           cd /home/runner/work/xiaomi_ares_sukisu/xiaomi_ares_sukisu/kernel

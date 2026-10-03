@@ -63,12 +63,66 @@ jobs:
           7za x llvm23.0.0-binutils2.45.1_amd64-kernel-arm_static-20260224.7z
           rm llvm23.0.0-binutils2.45.1_amd64-kernel-arm_static-20260224.7z
 
-      - name: Patch Kernel
-        working-directory: kernel
-        run: |
-          patch -p1 < $GITHUB_WORKSPACE/Patches/fix_restore_cgroup_file_prefix_handling.patch
-          patch -p1 < $GITHUB_WORKSPACE/Patches/susfs-syscall-hooks.patch
-          patch -p1 < $GITHUB_WORKSPACE/Patches/static-symbol-export.patch
+      - name: Apply patches
+  shell: /usr/bin/bash -e {0}
+  env:
+    CCACHE_COMPILERCHECK: ...
+  run: |
+    # ---- 新增：先补 SUSFS hook ----
+    python3 - <<'PY'
+    import re, pathlib
+
+    p = pathlib.Path("fs/exec.c")
+    s = p.read_text()
+    extern_block = """#ifdef CONFIG_KSU_SUSFS
+extern bool ksu_su_compat_enabled __read_mostly;
+extern struct static_key_true susfs_is_sdcard_android_data_not_decrypted;
+extern bool __ksu_is_allow_uid_for_current(uid_t uid);
+extern int ksu_handle_execveat(int *fd, struct filename **filename_ptr, void *argv,
+	 void *envp, int *flags);
+extern int ksu_handle_execveat_sucompat(int *fd, struct filename **filename_ptr, void *argv,
+	  void *envp, int *flags);
+#endif
+
+"""
+    if "ksu_handle_execveat_sucompat" not in s:
+        s = s.replace(
+            "static int do_execveat_common(int fd, struct filename *filename,",
+            extern_block + "static int do_execveat_common(int fd, struct filename *filename,",
+            1)
+        p.write_text(s)
+
+    p = pathlib.Path("kernel/reboot.c")
+    s = p.read_text()
+    extern_block = """#ifdef CONFIG_KSU
+extern int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd, void __user **arg);
+#endif
+
+"""
+    body = """#ifdef CONFIG_KSU_SUSFS
+	ret = ksu_handle_sys_reboot(magic1, magic2, cmd, &arg);
+	if (ret) {
+		goto orig_flow;
+	}
+	return ret;
+orig_flow:
+#endif
+
+"""
+    if "ksu_handle_sys_reboot" not in s:
+        s = s.replace("SYSCALL_DEFINE4(reboot,",
+                      extern_block + "SYSCALL_DEFINE4(reboot,", 1)
+        s = re.sub(r"(SYSCALL_DEFINE4\(reboot.*?\n\{\n(?:.*?\n)*?\tint ret = 0;\n)",
+                   r"\1\n" + body, s, count=1, flags=re.S)
+        p.write_text(s)
+    PY
+
+    # ---- 原来的 patch ----
+    patch -p1 < $GITHUB_WORKSPACE/Patches/fix_restore_cgroup_file_prefix_handling.patch
+    patch -p1 < $GITHUB_WORKSPACE/Patches/susfs-syscall-hooks.patch || {
+        echo "::warning::susfs-syscall-hooks.patch 有部分 hunk 已手工补过，忽略"
+    }
+    patch -p1 < $GITHUB_WORKSPACE/Patches/static-symbol-export.patch
 
       - name: Set up ReSukiSU
         working-directory: kernel

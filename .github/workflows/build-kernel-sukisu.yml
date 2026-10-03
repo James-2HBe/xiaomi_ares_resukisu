@@ -64,6 +64,7 @@ jobs:
         run: |
           patch -p1 < $GITHUB_WORKSPACE/Patches/fix_restore_cgroup_file_prefix_handling.patch
           patch -p1 < $GITHUB_WORKSPACE/Patches/static-symbol-export.patch
+          patch -p1 < $GITHUB_WORKSPACE/Patches/fix_stat_error.patch
 
       - name: Setup KSU
         run: |

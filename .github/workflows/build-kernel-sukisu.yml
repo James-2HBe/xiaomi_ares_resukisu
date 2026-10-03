@@ -32,7 +32,7 @@ jobs:
           remove-codeql: 'true'
 
       - name: Install Package
-        run: sudo apt update && sudo apt install -y p7zip-full git ccache
+        run: sudo apt update && sudo apt install -y p7zip-full git ccache gcc
 
       - name: Restore ccache
         uses: actions/cache@v4

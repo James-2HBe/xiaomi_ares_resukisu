@@ -3,6 +3,11 @@ name: Build Kernel -- ReSukiSU
 on:
   workflow_dispatch:
     inputs:
+      enable_feature_kpm:
+        description: "是否启用kpm (需要开启susfs)"
+        required: false
+        default: false
+        type: boolean
       SOURCECODE_BRANCH:
         description: '源码分支名称或修订版'
         required: true
@@ -100,7 +105,7 @@ jobs:
         run: |
           export KBUILD_BUILD_TIMESTAMP=$(date)
           export PATH=/usr/lib/ccache:$GITHUB_WORKSPACE/toolchain/bin:$PATH
-          make -j$(nproc --all) ${args} ares_user_defconfig all
+          make -j$(nproc --all) ${args} ares_defconfig all
       
       - name: Apply KernelPatch for KPM
         if: ${{ inputs.enable_feature_kpm }}

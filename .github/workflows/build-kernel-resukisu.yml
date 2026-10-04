@@ -83,7 +83,7 @@ jobs:
 
       - name: Setup BBG
         run: |
-          cd /home/runner/work/xiaomi_ares_sukisu/xiaomi_ares_sukisu/kernel
+          cd /home/runner/work/xiaomi_ares_resukisu/xiaomi_ares_resukisu/kernel
           wget -O- https://github.com/vc-teahouse/Baseband-guard/raw/main/setup.sh | bash
           sed -i '/^config LSM$/,/^help$/{ /^[[:space:]]*default/ { /baseband_guard/! s/selinux/selinux,baseband_guard/ } }' security/Kconfig
 

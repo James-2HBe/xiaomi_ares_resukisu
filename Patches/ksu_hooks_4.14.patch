@@ -1,6 +1,6 @@
 --- a/fs/exec.c
 +++ b/fs/exec.c
-@@ -1710,6 +1712,12 @@ static int exec_binprm(struct linux_binprm *bprm)
+@@ -1710,6 +1712,15 @@ static int exec_binprm(struct linux_binprm *bprm)
  /*
   * sys_execve() executes a new program.
   */
@@ -16,7 +16,7 @@
  static int do_execveat_common(int fd, struct filename *filename,
  			      struct user_arg_ptr argv,
  			      struct user_arg_ptr envp,
-@@ -1722,6 +1730,13 @@ static int do_execveat_common(int fd, struct filename *filename,
+@@ -1722,6 +1730,14 @@ static int do_execveat_common(int fd, struct filename *filename,
  
  	if (IS_ERR(filename))
  		return PTR_ERR(filename);

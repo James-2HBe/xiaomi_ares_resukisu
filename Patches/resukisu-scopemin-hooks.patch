@@ -4,47 +4,11 @@ Date: Tue, 10 Mar 2026 19:54:35 +0800
 Subject: [PATCH] scope_min_hooks
 
 ---
- fs/exec.c       | 11 +++++++++++
  fs/open.c       |  8 ++++++++
  fs/stat.c       | 22 ++++++++++++++++++++++
  kernel/reboot.c |  6 ++++++
  4 files changed, 47 insertions(+)
 
-diff --git a/fs/exec.c b/fs/exec.c
-index ae0a49517..20557df44 100644
---- a/fs/exec.c
-+++ b/fs/exec.c
-@@ -1871,12 +1871,20 @@ static int do_execveat_common(int fd, struct filename *filename,
- 	return retval;
- }
- 
-+#ifdef CONFIG_KSU_MANUAL_HOOK
-+__attribute__((hot))
-+extern int ksu_handle_execveat(int *fd, struct filename **filename_ptr,
-+				void *argv, void *envp, int *flags);
-+#endif
- int do_execve(struct filename *filename,
- 	const char __user *const __user *__argv,
- 	const char __user *const __user *__envp)
- {
- 	struct user_arg_ptr argv = { .ptr.native = __argv };
- 	struct user_arg_ptr envp = { .ptr.native = __envp };
-+#ifdef CONFIG_KSU_MANUAL_HOOK
-+	ksu_handle_execveat((int *)AT_FDCWD, &filename, &argv, &envp, 0);
-+#endif
- 	return do_execveat_common(AT_FDCWD, filename, argv, envp, 0);
- }
- 
-@@ -1904,6 +1912,9 @@ static int compat_do_execve(struct filename *filename,
- 		.is_compat = true,
- 		.ptr.compat = __envp,
- 	};
-+#ifdef CONFIG_KSU_MANUAL_HOOK // 32-bit ksud and 32-on-64 support
-+	ksu_handle_execveat((int *)AT_FDCWD, &filename, &argv, &envp, 0);
-+#endif
- 	return do_execveat_common(AT_FDCWD, filename, argv, envp, 0);
- }
- 
 diff --git a/fs/open.c b/fs/open.c
 index 3b62683fe..49a2e4097 100644
 --- a/fs/open.c
@@ -102,60 +66,6 @@ index 0fda4b6b8..6388b74df 100644
  	error = vfs_fstatat(dfd, filename, &stat, flag);
  	if (error)
  		return error;
-@@ -375,6 +388,9 @@ SYSCALL_DEFINE2(newfstat, unsigned int, fd, struct stat __user *, statbuf)
- 	if (!error)
- 		error = cp_new_stat(&stat, statbuf);
- 
-+#ifdef CONFIG_KSU_MANUAL_HOOK
-+	ksu_handle_newfstat_ret(&fd, &statbuf);
-+#endif
- 	return error;
- }
- 
-@@ -495,6 +511,9 @@ SYSCALL_DEFINE2(fstat64, unsigned long, fd, struct stat64 __user *, statbuf)
- 	if (!error)
- 		error = cp_new_stat64(&stat, statbuf);
- 
-+#ifdef CONFIG_KSU_MANUAL_HOOK // for 32-bit
-+	ksu_handle_fstat64_ret(&fd, &statbuf);
-+#endif
- 	return error;
- }
- 
-@@ -504,6 +523,9 @@ SYSCALL_DEFINE4(fstatat64, int, dfd, const char __user *, filename,
- 	struct kstat stat;
- 	int error;
- 
-+#ifdef CONFIG_KSU_MANUAL_HOOK // 32-bit su
-+	ksu_handle_stat(&dfd, &filename, &flag); 
-+#endif
- 	error = vfs_fstatat(dfd, filename, &stat, flag);
- 	if (error)
- 		return error;
-diff --git a/kernel/reboot.c b/kernel/reboot.c
-index eea91461e..026fd5ed5 100644
---- a/kernel/reboot.c
-+++ b/kernel/reboot.c
-@@ -284,6 +284,9 @@ static DEFINE_MUTEX(reboot_mutex);
-  *
-  * reboot doesn't sync: do that yourself before calling this.
-  */
-+#ifdef CONFIG_KSU_MANUAL_HOOK
-+extern int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd, void __user **arg);
-+#endif
- SYSCALL_DEFINE4(reboot, int, magic1, int, magic2, unsigned int, cmd,
- 		void __user *, arg)
- {
-@@ -291,6 +294,9 @@ SYSCALL_DEFINE4(reboot, int, magic1, int, magic2, unsigned int, cmd,
- 	char buffer[256];
- 	int ret = 0;
- 
-+#ifdef CONFIG_KSU_MANUAL_HOOK
-+	ksu_handle_sys_reboot(magic1, magic2, cmd, &arg);
-+#endif
- 	/* We only trust the superuser with rebooting the system. */
- 	if (!ns_capable(pid_ns->user_ns, CAP_SYS_BOOT))
- 		return -EPERM;
 -- 
 2.53.0
 

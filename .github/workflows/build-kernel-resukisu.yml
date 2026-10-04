@@ -126,3 +126,11 @@ jobs:
           name: K40GE_SukiSU_${{ env.KSUVER }}
           path: Magiskboot/boot_ReSukiSU_${{ env.KSUVER }}.img
           compression-level: 9
+
+      - name: Upload rejects
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+           name: patch-rejects
+           path: '**/*.rej'
+           

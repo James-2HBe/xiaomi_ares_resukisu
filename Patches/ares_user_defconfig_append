@@ -146,6 +146,7 @@ CONFIG_FRONTSWAP=y
 CONFIG_KALLSYMS=y
 CONFIG_KALLSYMS_ALL=y
 CONFIG_BBG=y
+CONFIG_LSM=lockdown,yama,loadpin,safesetid,integrity,selinux,smack,tomoyo,apparmor,bpf,baseband_guard
 
 # Add Droidspaces Support
 # Kernel configurations for full DroidSpaces support

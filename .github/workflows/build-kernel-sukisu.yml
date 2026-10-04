@@ -74,9 +74,8 @@ jobs:
       - name: Patch Kernel
         run: |
           cd kernel
-          # 先打无问题的补丁
           patch -p1 < $GITHUB_WORKSPACE/Patches/fix_restore_cgroup_file_prefix_handling.patch || true
-          patch -p1 < $GITHUB_WORKSPACE/Patches/static-symbol-export.patch || true
+          
 
       - name: Set up KSU
         working-directory: kernel

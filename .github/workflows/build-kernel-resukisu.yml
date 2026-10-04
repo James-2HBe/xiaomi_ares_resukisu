@@ -6,7 +6,7 @@ on:
       SOURCECODE_BRANCH:
         description: '源码分支名称或修订版'
         required: true
-        default: 'U-dev'
+        default: 'chopin_kvm'
 
 jobs:
   build:
@@ -47,7 +47,7 @@ jobs:
       - name: Get Kernel Source Code
         uses: actions/checkout@v5
         with:
-          repository: MerCuJerry/android_kernel_aresin
+          repository: James-2HBe/kernel_mt6893
           ref: ${{ inputs.SOURCECODE_BRANCH }}
           path: kernel
       
@@ -74,13 +74,21 @@ jobs:
         run: |
           patch -p1 < $GITHUB_WORKSPACE/Patches/resukisu-scopemin-hooks.patch
           patch -p1 < $GITHUB_WORKSPACE/Patches/static-symbol-export.patch
+          patch -p1 < $GITHUB_WORKSPACE/Patches/fix_restore_cgroup_file_prefix_handling.patch
+
+      - name: Setup BBG
+        run: |
+          cd /home/runner/work/xiaomi_ares_sukisu/xiaomi_ares_sukisu/kernel
+          wget -O- https://github.com/vc-teahouse/Baseband-guard/raw/main/setup.sh | bash
+          sed -i '/^config LSM$/,/^help$/{ /^[[:space:]]*default/ { /baseband_guard/! s/selinux/selinux,baseband_guard/ } }' security/Kconfig
 
       - name: Copy defconfig
         run: |
-          echo "CONFIG_KSU=y" >> $GITHUB_WORKSPACE/kernel/arch/arm64/configs/ares_user_defconfig
-          echo "CONFIG_KSU_MANUAL_HOOK=y" >> $GITHUB_WORKSPACE/kernel/arch/arm64/configs/ares_user_defconfig
-          echo "KSU_MULTI_MANAGER_SUPPORT=y" >> $GITHUB_WORKSPACE/kernel/arch/arm64/configs/ares_user_defconfig
-          echo "KSU_FULL_NAME_FORMAT=\"%TAG_NAME%-%KSU_VERSION%@%REPO_NAME%\"" >> $GITHUB_WORKSPACE/kernel/arch/arm64/configs/ares_user_defconfig
+          cat $GITHUB_WORKSPACE/Patches/ares_user_defconfig_append >> $GITHUB_WORKSPACE/kernel/arch/arm64/configs/ares_defconfig
+          echo "CONFIG_KSU=y" >> $GITHUB_WORKSPACE/kernel/arch/arm64/configs/ares_defconfig
+          echo "CONFIG_KSU_MANUAL_HOOK=y" >> $GITHUB_WORKSPACE/kernel/arch/arm64/configs/ares_defconfig
+          echo "KSU_MULTI_MANAGER_SUPPORT=y" >> $GITHUB_WORKSPACE/kernel/arch/arm64/configs/ares_defconfig
+          echo "KSU_FULL_NAME_FORMAT=\"%TAG_NAME%-%KSU_VERSION%@%REPO_NAME%\"" >> $GITHUB_WORKSPACE/kernel/arch/arm64/configs/ares_defconfig
       
       - name: Build Kernel for K40GE
         working-directory: kernel

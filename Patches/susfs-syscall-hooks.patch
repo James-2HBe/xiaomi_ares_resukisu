@@ -6,14 +6,14 @@ Subject: [PATCH] ksu-susfs
 ---
  drivers/input/input.c    | 11 +++++++++++
  fs/devpts/inode.c        | 15 +++++++++++++++
- fs/exec.c                | 24 ++++++++++++++++++++++++
+ fs/exec.c                | 21 +++++++++++++++++++++
  fs/open.c                | 20 ++++++++++++++++++++
  fs/read_write.c          | 10 ++++++++++
  fs/stat.c                | 34 ++++++++++++++++++++++++++++++++++
  kernel/reboot.c          | 11 +++++++++++
  kernel/sys.c             |  7 +++++++
  security/selinux/hooks.c | 21 +++++++++++++++++++++
- 9 files changed, 153 insertions(+)
+ 9 files changed, 150 insertions(+)
 
 diff --git a/drivers/input/input.c b/drivers/input/input.c
 index f9f3d6261..4a6e2a8e9 100644
@@ -112,11 +112,10 @@ index ae0a49517..87293f50c 100644
  static int do_execveat_common(int fd, struct filename *filename,
  			      struct user_arg_ptr argv,
  			      struct user_arg_ptr envp,
-@@ -1720,6 +1733,17 @@ static int do_execveat_common(int fd, struct filename *filename,
- 			      int flags)
- {
- 	struct user_arg_ptr argv = { .ptr.native = __argv };
- 	struct user_arg_ptr envp = { .ptr.native = __envp };
+@@ -1722,6 +1735,14 @@ static int do_execveat_common(int fd, struct filename *filename,
+ 	if (IS_ERR(filename))
+ 		return PTR_ERR(filename);
+ 
 +#ifdef CONFIG_KSU_SUSFS
 +	if (likely(susfs_is_current_proc_umounted()) || !ksu_su_compat_enabled)
 +		goto orig_flow;
@@ -128,7 +127,6 @@ index ae0a49517..87293f50c 100644
 +
 +orig_flow:
 +#endif
- 
  	/*
  	 * We move the actual failure in case of RLIMIT_NPROC excess from
 diff --git a/fs/open.c b/fs/open.c
@@ -278,7 +276,7 @@ diff --git a/kernel/reboot.c b/kernel/reboot.c
 index eea91461e..fa4bde27c 100644
 --- a/kernel/reboot.c
 +++ b/kernel/reboot.c
-@@ -280,11 +280,21 @@
+@@ -280,6 +280,17 @@
  #ifdef CONFIG_KSU
  extern int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd, void __user **arg);
  #endif
@@ -367,5 +365,3 @@ index 67699b611..da7a039ce 100644
  	/*
  	 * If the policy enables the nnp_nosuid_transition policy capability,
  	 * then we permit transitions under NNP or nosuid if the
--- 
-2.54.0

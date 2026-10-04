@@ -96,8 +96,7 @@ index ae0a49517..87293f50c 100644
  
  #include <linux/uaccess.h>
  #include <asm/mmu_context.h>
-@@ -1885,6 +1888,16 @@ static int exec_binprm(struct linux_binprm *bprm)
- /*
+@@ -1710,6 +1713,16 @@ static int exec_binprm(struct linux_binprm *bprm)
   * sys_execve() executes a new program.
   */
 +#ifdef CONFIG_KSU_SUSFS
@@ -113,10 +112,11 @@ index ae0a49517..87293f50c 100644
  static int do_execveat_common(int fd, struct filename *filename,
  			      struct user_arg_ptr argv,
  			      struct user_arg_ptr envp,
-@@ -1898,6 +1911,17 @@ static int do_execveat_common(int fd, struct filename *filename,
- 
- 	if (IS_ERR(filename))
- 		return PTR_ERR(filename);
+@@ -1720,6 +1733,17 @@ static int do_execveat_common(int fd, struct filename *filename,
+ 			      int flags)
+ {
+ 	struct user_arg_ptr argv = { .ptr.native = __argv };
+ 	struct user_arg_ptr envp = { .ptr.native = __envp };
 +#ifdef CONFIG_KSU_SUSFS
 +	if (likely(susfs_is_current_proc_umounted()) || !ksu_su_compat_enabled)
 +		goto orig_flow;
@@ -278,13 +278,10 @@ diff --git a/kernel/reboot.c b/kernel/reboot.c
 index eea91461e..fa4bde27c 100644
 --- a/kernel/reboot.c
 +++ b/kernel/reboot.c
-@@ -280,12 +280,23 @@ static DEFINE_MUTEX(reboot_mutex);
-  *
-  * reboot doesn't sync: do that yourself before calling this.
-  */
-+#ifdef CONFIG_KSU
-+extern int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd, void __user **arg);
-+#endif
+@@ -280,11 +280,21 @@
+ #ifdef CONFIG_KSU
+ extern int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd, void __user **arg);
+ #endif
  SYSCALL_DEFINE4(reboot, int, magic1, int, magic2, unsigned int, cmd,
  		void __user *, arg)
  {
@@ -292,11 +289,11 @@ index eea91461e..fa4bde27c 100644
  	char buffer[256];
  	int ret = 0;
 +#ifdef CONFIG_KSU_SUSFS
-+    ret = ksu_handle_sys_reboot(magic1, magic2, cmd, &arg);
-+    if (ret) {
-+        goto orig_flow;
-+    }
-+    return ret;
++	ret = ksu_handle_sys_reboot(magic1, magic2, cmd, &arg);
++	if (ret) {
++		goto orig_flow;
++	}
++	return ret;
 +orig_flow:
 +#endif
  

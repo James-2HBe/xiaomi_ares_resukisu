@@ -77,10 +77,6 @@ jobs:
           # 先打无问题的补丁
           patch -p1 < $GITHUB_WORKSPACE/Patches/fix_restore_cgroup_file_prefix_handling.patch || true
           patch -p1 < $GITHUB_WORKSPACE/Patches/static-symbol-export.patch || true
-          patch -p1 < $GITHUB_WORKSPACE/Patches/fix_stat_error.patch
-          patch -p1 < $GITHUB_WORKSPACE/Patches/exec_fix.patch
-          patch -p1 < $GITHUB_WORKSPACE/Patches/backprot.patch
-          patch -p1 < $GITHUB_WORKSPACE/Patches/safemode.patch
 
       - name: Set up ReSukiSU
         working-directory: kernel

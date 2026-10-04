@@ -7,10 +7,6 @@ on:
         description: '源码分支名称或修订版'
         required: true
         default: 'chopin_kvm'
-      SUKISU_BRANCH:
-        description: 'ReSukiSU 分支名称或修订版'
-        required: true
-        default: 'main'
 
 jobs:
   build:
@@ -36,7 +32,7 @@ jobs:
           remove-codeql: 'true'
 
       - name: Install Package
-        run: sudo apt update && sudo apt install -y p7zip-full git ccache gcc git
+        run: sudo apt update && sudo apt install -y p7zip-full git ccache gcc
 
       - name: Restore ccache
         uses: actions/cache@v4
@@ -63,30 +59,16 @@ jobs:
           7za x llvm23.0.0-binutils2.45.1_amd64-kernel-arm_static-20260224.7z
           rm llvm23.0.0-binutils2.45.1_amd64-kernel-arm_static-20260224.7z
 
-      - name: Get susfs patch
-        uses: actions/checkout@v5
-        with:
-          repository: JackA1ltman/NonGKI_Kernel_Build_2nd
-          sparse-checkout: Patches/Patch
-          ref: mainline
-          path: susfs_patch
-
       - name: Patch Kernel
         run: |
           cd kernel
-          patch -p1 < $GITHUB_WORKSPACE/Patches/fix_restore_cgroup_file_prefix_handling.patch || true
+          patch -p1 < $GITHUB_WORKSPACE/Patches/fix_restore_cgroup_file_prefix_handling.patch
           
 
       - name: Set up KSU
         working-directory: kernel
         run: |
           curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -s v0.9.5
-
-      - name: Get SukiSU Patches
-        uses: actions/checkout@v5
-        with:
-          repository: SukiSU-Ultra/SukiSU_patch
-          path: sukisu_patch
 
       - name: Setup BBG
         run: |

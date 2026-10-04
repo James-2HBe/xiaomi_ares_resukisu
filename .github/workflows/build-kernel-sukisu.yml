@@ -68,6 +68,7 @@ jobs:
       - name: Set up KSU
         working-directory: kernel
         run: |
+          cd /home/runner/work/xiaomi_ares_sukisu/xiaomi_ares_sukisu/kernel
           curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -s v0.9.5
 
       - name: Setup BBG
@@ -91,15 +92,6 @@ jobs:
           export KBUILD_BUILD_TIMESTAMP=$(date)
           export PATH=/usr/lib/ccache:$GITHUB_WORKSPACE/toolchain/bin:$PATH
           make -j$(nproc --all) ${args} ares_defconfig all
-      
-      - name: Apply KernelPatch for KPM
-        if: ${{ inputs.enable_feature_kpm }}
-        working-directory: kernel/out/arch/arm64/boot
-        run: |
-          cp $GITHUB_WORKSPACE/sukisu_patch/kpm/patch_linux .
-          chmod +x patch_linux
-          ./patch_linux
-          mv oImage Image
 
       - name: Pack Kernel using Magiskboot
         working-directory: Magiskboot

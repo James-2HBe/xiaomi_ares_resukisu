@@ -1,64 +1,66 @@
---- ./fs/exec.c	2024-12-19 12:31:30.220864300 -0500
-+++ ./fs/exec.c	2024-12-19 12:41:54.519892326 -0500
-@@ -1710,6 +1710,24 @@
- 	return retval;
- }
- 
-+#ifdef CONFIG_KSU_SUSFS
-+extern bool ksu_su_compat_enabled __read_mostly;
-+extern struct static_key_true susfs_is_sdcard_android_data_not_decrypted;
-+extern bool __ksu_is_allow_uid_for_current(uid_t uid);
+--- a/fs/exec.c
++++ b/fs/exec.c
+@@ -1710,6 +1712,12 @@ static int exec_binprm(struct linux_binprm *bprm)
+ /*
+  * sys_execve() executes a new program.
+  */
++#ifndef CONFIG_KSU_SUSFS
++#ifdef CONFIG_KSU
++extern bool ksu_execveat_hook __read_mostly;
 +extern int ksu_handle_execveat(int *fd, struct filename **filename_ptr, void *argv,
 +			void *envp, int *flags);
 +extern int ksu_handle_execveat_sucompat(int *fd, struct filename **filename_ptr, void *argv,
 +				void *envp, int *flags);
-+#elif defined(CONFIG_KSU)
-+extern bool ksu_execveat_hook __read_mostly;
-+extern int ksu_handle_execveat(int *fd, struct filename **filename_ptr, void *argv,
-+			void *envp, int *flags);
-+extern int ksu_handle_execveat_sucompat(int *fd, struct filename **filename_ptr,
-+				 void *argv, void *envp, int *flags);
++#endif
 +#endif
  static int do_execveat_common(int fd, struct filename *filename,
  			      struct user_arg_ptr argv,
  			      struct user_arg_ptr envp,
- 			      int flags)
- {
+@@ -1722,6 +1730,13 @@ static int do_execveat_common(int fd, struct filename *filename,
+ 
+ 	if (IS_ERR(filename))
+ 		return PTR_ERR(filename);
++#ifndef CONFIG_KSU_SUSFS
 +#ifdef CONFIG_KSU
 +	if (unlikely(ksu_execveat_hook))
 +		ksu_handle_execveat(&fd, &filename, &argv, &envp, &flags);
 +	else
 +		ksu_handle_execveat_sucompat(&fd, &filename, &argv, &envp, &flags);
 +#endif
- 	return __do_execve_file(fd, filename, argv, envp, flags, NULL);
- }
++#endif
  
---- ./fs/open.c	2024-12-19 12:31:30.301864300 -0500
-+++ ./fs/open.c	2024-12-19 12:42:50.813756015 -0500
-@@ -339,6 +339,10 @@
- 	return ksys_fallocate(fd, mode, offset, len);
- }
- 
+ 	/*
+ 	 * We move the actual failure in case of RLIMIT_NPROC excess from
+--- a/fs/open.c
++++ b/fs/open.c
+@@ -359,6 +359,10 @@ SYSCALL_DEFINE4(fallocate, int, fd, int, mode, loff_t, offset, loff_t, len)
+  * We do this by temporarily clearing all FS-related capabilities and
+  * switching the fsuid/fsgid around to the real ones.
+  */
++#ifndef CONFIG_KSU_SUSFS
 +#ifdef CONFIG_KSU
 +extern int ksu_handle_faccessat(int *dfd, const char __user **filename_user, int *mode,
 +			 int *flags);
 +#endif
- /*
-  * access() needs to use the real uid/gid, not the effective uid/gid.
-  * We do this by temporarily clearing all FS-related capabilities and
-@@ -352,6 +356,9 @@
- 	struct inode *inode;
++#endif
+ SYSCALL_DEFINE3(faccessat, int, dfd, const char __user *, filename, int, mode)
+ {
+ 	const struct cred *old_cred;
+@@ -369,6 +373,9 @@ SYSCALL_DEFINE3(faccessat, int, dfd, const char __user *, filename, int, mode)
  	int res;
  	unsigned int lookup_flags = LOOKUP_FOLLOW;
-+	#ifdef CONFIG_KSU
-+	ksu_handle_faccessat(&dfd, &filename, &mode, NULL);
-+	#endif
  
++#ifndef CONFIG_KSU_SUSFS
++#ifdef CONFIG_KSU
++	ksu_handle_faccessat(&dfd, &filename, &mode, NULL);
++#endif
++#endif
  	if (mode & ~S_IRWXO)	/* where's F_OK, X_OK, W_OK, R_OK? */
  		return -EINVAL;
---- ./fs/read_write.c	2024-12-19 12:31:30.310864300 -0500
-+++ ./fs/read_write.c	2024-12-19 12:44:12.681568152 -0500
-@@ -434,9 +434,18 @@
+ 
+--- a/fs/read_write.c
++++ b/fs/read_write.c
+@@ -434,9 +434,18 @@ ssize_t kernel_read(struct file *file, void *buf, size_t count, loff_t *pos)
  }
  EXPORT_SYMBOL(kernel_read);
  
@@ -70,138 +72,85 @@
  ssize_t vfs_read(struct file *file, char __user *buf, size_t count, loff_t *pos)
  {
  	ssize_t ret;
-+	#ifdef CONFIG_KSU 
++#ifdef CONFIG_KSU
 +	if (unlikely(ksu_vfs_read_hook))
 +		ksu_handle_vfs_read(&file, &buf, &count, &pos);
-+	#endif
++#endif
  
  	if (!(file->f_mode & FMODE_READ))
  		return -EBADF;
---- ./fs/stat.c	2024-12-20 05:02:36.125873300 -0500
-+++ ./fs/stat.c	2024-12-20 05:16:35.396093885 -0500
-@@ -162,6 +162,10 @@
+--- a/fs/stat.c
++++ b/fs/stat.c
+@@ -162,6 +162,10 @@ int vfs_statx_fd(unsigned int fd, struct kstat *stat,
  }
  EXPORT_SYMBOL(vfs_statx_fd);
  
++#ifndef CONFIG_KSU_SUSFS
 +#ifdef CONFIG_KSU
 +extern int ksu_handle_stat(int *dfd, const char __user **filename_user, int *flags);
 +#endif
-+
++#endif
+ 
  /**
   * vfs_statx - Get basic and extra attributes by filename
-  * @dfd: A file descriptor representing the base dir for a relative filename
-@@ -190,6 +194,10 @@
+@@ -190,6 +194,10 @@ int vfs_statx(int dfd, const char __user *filename, int flags,
  	int error = -EINVAL;
  	unsigned int lookup_flags = LOOKUP_FOLLOW | LOOKUP_AUTOMOUNT;
  
++#ifndef CONFIG_KSU_SUSFS
 +#ifdef CONFIG_KSU
 +	ksu_handle_stat(&dfd, &filename, &flags);
 +#endif
-+
- #ifdef CONFIG_KSU_SUSFS_SUS_SU
- 	if (susfs_is_sus_su_hooks_enabled) {
- 		ksu_handle_stat(&dfd, &filename, &flags);
---- ./drivers/input/input.c	2024-12-19 12:31:28.411864300 -0500
-+++ ./drivers/input/input.c	2024-12-19 12:49:07.714120265 -0500
-@@ -378,10 +378,19 @@
++#endif
+ 
+ 	if ((flags & ~(AT_SYMLINK_NOFOLLOW | AT_NO_AUTOMOUNT |
+ 		       AT_EMPTY_PATH | KSTAT_QUERY_FLAGS)) != 0)
+--- a/drivers/input/input.c
++++ b/drivers/input/input.c
+@@ -378,10 +378,19 @@ static int input_get_disposition(struct input_dev *dev,
  	return disposition;
  }
  
++#ifndef CONFIG_KSU_SUSFS
 +#ifdef CONFIG_KSU
 +extern bool ksu_input_hook __read_mostly;
 +extern int ksu_handle_input_handle_event(unsigned int *type, unsigned int *code, int *value);
 +#endif
-+
++#endif
  static void input_handle_event(struct input_dev *dev,
  			       unsigned int type, unsigned int code, int value)
  {
  	int disposition = input_get_disposition(dev, type, code, &value);
-+	#ifdef CONFIG_KSU
++#ifndef CONFIG_KSU_SUSFS
++#ifdef CONFIG_KSU
 +	if (unlikely(ksu_input_hook))
 +		ksu_handle_input_handle_event(&type, &code, &value);
-+	#endif
++#endif
++#endif
  
  	if (disposition != INPUT_IGNORE_EVENT && type != EV_SYN)
  		add_input_randomness(type, code, value);
---- ./fs/devpts/inode.c	2024-12-19 12:31:30.211864300 -0500
-+++ ./fs/devpts/inode.c	2024-12-19 12:50:33.565526211 -0500
-@@ -599,6 +599,10 @@
+--- a/fs/devpts/inode.c
++++ b/fs/devpts/inode.c
+@@ -599,6 +599,10 @@ void devpts_kill_index(struct pts_fs_info *fsi, int idx)
  	return dentry;
  }
  
++#ifndef CONFIG_KSU_SUSFS
 +#ifdef CONFIG_KSU
 +extern int ksu_handle_devpts(struct inode*);
 +#endif
-+
++#endif
  /**
   * devpts_get_priv -- get private data for a slave
   * @pts_inode: inode of the slave
-@@ -607,6 +611,9 @@
-  */
- void *devpts_get_priv(struct dentry *dentry)
+@@ -607,6 +611,9 @@ void *devpts_get_priv(struct dentry *dentry)
  {
-+	#ifdef CONFIG_KSU
++#ifndef CONFIG_KSU_SUSFS
++#ifdef CONFIG_KSU
 +	ksu_handle_devpts(dentry->d_inode);
-+	#endif
++#endif
++#endif
  	if (dentry->d_sb->s_magic != DEVPTS_SUPER_MAGIC)
  		return NULL;
  	return dentry->d_fsdata;
---- ./fs/namespace.c	2024-12-19 12:55:30.333301400 -0500
-+++ ./fs/namespace.c	2024-12-19 12:55:40.608151235 -0500
-@@ -1652,6 +1652,39 @@
- }
- #endif
- 
-+static int can_umount(const struct path *path, int flags)
-+{
-+	struct mount *mnt = real_mount(path->mnt);
-+
-+	if (flags & ~(MNT_FORCE | MNT_DETACH | MNT_EXPIRE | UMOUNT_NOFOLLOW))
-+		return -EINVAL;
-+	if (!may_mount())
-+		return -EPERM;
-+	if (path->dentry != path->mnt->mnt_root)
-+		return -EINVAL;
-+	if (!check_mnt(mnt))
-+		return -EINVAL;
-+	if (mnt->mnt.mnt_flags & MNT_LOCKED) /* Check optimistically */
-+		return -EINVAL;
-+	if (flags & MNT_FORCE && !capable(CAP_SYS_ADMIN))
-+		return -EPERM;
-+	return 0;
-+}
-+
-+int path_umount(struct path *path, int flags)
-+{
-+	struct mount *mnt = real_mount(path->mnt);
-+	int ret;
-+
-+	ret = can_umount(path, flags);
-+	if (!ret)
-+		ret = do_umount(mnt, flags);
-+
-+	/* we mustn't call path_put() as that would clear mnt_expiry_mark */
-+	dput(path->dentry);
-+	mntput_no_expire(mnt);
-+	return ret;
-+}
---- ./kernel/reboot.c	2024-12-19 12:31:30.220864300 -0500
-+++ ./kernel/reboot.c	2024-12-19 12:41:54.519892326 -0500
-@@ -280,6 +280,26 @@
-+#ifdef CONFIG_KSU
-+extern int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd, void __user **arg);
-+#endif
- SYSCALL_DEFINE4(reboot, int, magic1, int, magic2, unsigned int, cmd,
- 		void __user *, arg)
- {
- 	struct pid_namespace *pid_ns = task_active_pid_ns(current);
- 	char buffer[256];
- 	int ret = 0;
-+#ifdef CONFIG_KSU_SUSFS
-+	ret = ksu_handle_sys_reboot(magic1, magic2, cmd, &arg);
-+	if (ret) {
-+		goto orig_flow;
-+	}
-+	return ret;
-+orig_flow:
-+#endif

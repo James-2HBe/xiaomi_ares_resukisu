@@ -96,7 +96,7 @@ index ae0a49517..87293f50c 100644
  
  #include <linux/uaccess.h>
  #include <asm/mmu_context.h>
-@@ -1709,6 +1712,16 @@ static int exec_binprm(struct linux_binprm *bprm)
+@@ -1885,6 +1888,16 @@ static int exec_binprm(struct linux_binprm *bprm)
  /*
   * sys_execve() executes a new program.
   */
@@ -113,7 +113,7 @@ index ae0a49517..87293f50c 100644
  static int do_execveat_common(int fd, struct filename *filename,
  			      struct user_arg_ptr argv,
  			      struct user_arg_ptr envp,
-@@ -1722,6 +1735,17 @@ static int do_execveat_common(int fd, struct filename *filename,
+@@ -1898,6 +1911,17 @@ static int do_execveat_common(int fd, struct filename *filename,
  
  	if (IS_ERR(filename))
  		return PTR_ERR(filename);
@@ -278,7 +278,7 @@ diff --git a/kernel/reboot.c b/kernel/reboot.c
 index eea91461e..fa4bde27c 100644
 --- a/kernel/reboot.c
 +++ b/kernel/reboot.c
-@@ -284,12 +284,23 @@ static DEFINE_MUTEX(reboot_mutex);
+@@ -280,12 +280,23 @@ static DEFINE_MUTEX(reboot_mutex);
   *
   * reboot doesn't sync: do that yourself before calling this.
   */
@@ -372,4 +372,3 @@ index 67699b611..da7a039ce 100644
  	 * then we permit transitions under NNP or nosuid if the
 -- 
 2.54.0
-

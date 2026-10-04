@@ -1,14 +1,3 @@
-From d8e4d5c7b3746422f75883695dc91844eb2b9727 Mon Sep 17 00:00:00 2001
-From: MerCuJerry <mercujerry@gmail.com>
-Date: Tue, 10 Mar 2026 19:54:35 +0800
-Subject: [PATCH] scope_min_hooks
-
----
- fs/open.c       |  8 ++++++++
- fs/stat.c       | 22 ++++++++++++++++++++++
- kernel/reboot.c |  6 ++++++
- 4 files changed, 47 insertions(+)
-
 diff --git a/fs/open.c b/fs/open.c
 index 3b62683fe..49a2e4097 100644
 --- a/fs/open.c

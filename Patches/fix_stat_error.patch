@@ -1,6 +1,6 @@
 --- a/fs/stat.c
 +++ b/fs/stat.c
-@@ -353,6 +353,10 @@ SYSCALL_DEFINE2(newlstat, const char __user *, filename,
+@@ -353,6 +353,17 @@ SYSCALL_DEFINE2(newlstat, const char __user *, filename,
  	return cp_new_stat(&stat, statbuf);
  }
  

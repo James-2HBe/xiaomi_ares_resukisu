@@ -77,7 +77,6 @@ jobs:
           # 先打无问题的补丁
           patch -p1 < $GITHUB_WORKSPACE/Patches/fix_restore_cgroup_file_prefix_handling.patch || true
           patch -p1 < $GITHUB_WORKSPACE/Patches/static-symbol-export.patch || true
-          patch -p1 < $GITHUB_WORKSPACE/Patches/ksu_hooks_4.14.patch || true
           patch -p1 < $GITHUB_WORKSPACE/Patches/resukisu-scopemin-hooks.patch
 
       - name: Set up ReSukiSU

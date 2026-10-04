@@ -75,9 +75,9 @@ jobs:
         run: |
           cd kernel
           # 先打无问题的补丁
-          patch -p1 < $GITHUB_WORKSPACE/Patches/fix_restore_cgroup_file_prefix_handling.patch
-          patch -p1 < $GITHUB_WORKSPACE/Patches/static-symbol-export.patch
-          patch -p1 < $GITHUB_WORKSPACE/Patches/ksu_hooks_4.14.patch
+          patch -p1 < $GITHUB_WORKSPACE/Patches/fix_restore_cgroup_file_prefix_handling.patch || true
+          patch -p1 < $GITHUB_WORKSPACE/Patches/static-symbol-export.patch || true
+          patch -p1 < $GITHUB_WORKSPACE/Patches/ksu_hooks_4.14.patch || true
 
           # 使用 Python 自动化处理 susfs 的插入，彻底避免 patch 格式错误
           python3 -c '

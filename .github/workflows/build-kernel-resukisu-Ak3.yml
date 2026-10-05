@@ -196,8 +196,8 @@ jobs:
         if: always()
         uses: softprops/action-gh-release@v2
         with: 
-          tag_name: logs
-          name: Workflow's log(latest)
+          tag_name: logs_ak3
+          name: AK3 Workflow's log(latest)
           body: "run ${{ github.run_number }} / ${{ inputs.release_tag }}"
           files: artifacts/build.log
           prerelease: true

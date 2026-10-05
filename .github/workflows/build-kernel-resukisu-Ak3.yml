@@ -1,0 +1,211 @@
+name: Build Kernel -- ReSukiSU --Ak3
+
+on:
+  workflow_dispatch:
+    inputs:
+      enable_feature_kpm:
+        description: "是否启用kpm (需要开启susfs)"
+        required: false
+        default: false
+        type: boolean
+      SOURCECODE_BRANCH:
+        description: '源码分支名称或修订版'
+        required: true
+        default: 'chopin_kvm'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      CCACHE_COMPILERCHECK: "%compiler% -dumpmachine; %compiler% -dumpversion"
+      CCACHE_NOHASHDIR: "true"
+      CCACHE_HARDLINK: "true"
+      CCACHE_DIR: /home/runner/.ccache
+      CCACHE_MAXSIZE: 8G
+    strategy:
+      fail-fast: false
+    name: Build Kernel for K40GE
+    steps:
+      - name: Maximize build space
+        uses: easimon/maximize-build-space@master
+        with:
+          root-reserve-mb: 8192
+          temp-reserve-mb: 2048
+          remove-dotnet: 'true'
+          remove-android: 'true'
+          remove-haskell: 'true'
+          remove-codeql: 'true'
+
+      - name: Install Package
+        run: sudo apt update && sudo apt install -y p7zip-full git ccache
+
+      - name: Restore ccache
+        uses: actions/cache@v4
+        with:
+          path: /home/runner/.ccache
+          key: ccache-${{ runner.os }}-${{ github.ref }}
+          restore-keys: |
+            ccache-${{ runner.os }}-
+
+      - uses: actions/checkout@v5
+
+      - name: Get Kernel Source Code
+        uses: actions/checkout@v5
+        with:
+          repository: James-2HBe/kernel_mt6893
+          ref: ${{ inputs.SOURCECODE_BRANCH }}
+          path: kernel
+      
+      - name: Setup Cross-compile toolchain
+        run: |
+          mkdir -p toolchain
+          cd toolchain
+          wget -q https://github.com/Mandi-Sa/clang/releases/download/amd64-kernel-arm_static-23/llvm23.0.0-binutils2.45.1_amd64-kernel-arm_static-20260224.7z
+          7za x llvm23.0.0-binutils2.45.1_amd64-kernel-arm_static-20260224.7z
+          rm llvm23.0.0-binutils2.45.1_amd64-kernel-arm_static-20260224.7z
+      
+      - name: Set up ReSukiSU
+        working-directory: kernel
+        run: |
+          echo DATE=$(date +%F) >> $GITHUB_ENV
+          curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh" | bash
+          cd ./KernelSU
+          export KSU_VERSION=$(expr $(/usr/bin/git rev-list --count main) "+" 30000 "+" 700)
+          echo "KSUVER=$KSU_VERSION" >> $GITHUB_ENV
+          sed -i "s/DKSU_VERSION=12800/DKSU_VERSION=${KSU_VERSION}/" kernel/Makefile
+
+      - name: Patch Kernel
+        working-directory: kernel
+        run: |
+          patch -p1 < $GITHUB_WORKSPACE/Patches/resukisu-scopemin-hooks.patch
+          patch -p1 < $GITHUB_WORKSPACE/Patches/static-symbol-export.patch
+          patch -p1 < $GITHUB_WORKSPACE/Patches/fix_restore_cgroup_file_prefix_handling.patch
+
+      - name: Setup BBG
+        run: |
+          cd /home/runner/work/xiaomi_ares_resukisu/xiaomi_ares_resukisu/kernel
+          wget -O- https://github.com/vc-teahouse/Baseband-guard/raw/main/setup.sh | bash
+          sed -i '/^config LSM$/,/^help$/{ /^[[:space:]]*default/ { /baseband_guard/! s/selinux/selinux,baseband_guard/ } }' security/Kconfig
+
+      - name: Copy defconfig
+        run: |
+          cat $GITHUB_WORKSPACE/Patches/ares_user_defconfig_append >> $GITHUB_WORKSPACE/kernel/arch/arm64/configs/ares_defconfig
+          echo "CONFIG_KSU=y" >> $GITHUB_WORKSPACE/kernel/arch/arm64/configs/ares_defconfig
+          echo "CONFIG_KSU_MANUAL_HOOK=y" >> $GITHUB_WORKSPACE/kernel/arch/arm64/configs/ares_defconfig
+          echo "KSU_MULTI_MANAGER_SUPPORT=y" >> $GITHUB_WORKSPACE/kernel/arch/arm64/configs/ares_defconfig
+          echo "KSU_FULL_NAME_FORMAT=\"%TAG_NAME%-%KSU_VERSION%@%REPO_NAME%\"" >> $GITHUB_WORKSPACE/kernel/arch/arm64/configs/ares_defconfig
+      
+      - name: Build Kernel for K40GE
+        working-directory: kernel
+        env:
+          args: |+
+            LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu-
+            CROSS_COMPILE_ARM32=arm-linux-gnueabi- CROSS_COMPILE_COMPAT=arm-linux-gnueabi-
+            CC=clang LD=ld.lld HOSTLD=ld.lld O=out KCFLAGS+=-O2 KCFLAGS_PERF+=-O3
+        run: |
+          export KBUILD_BUILD_TIMESTAMP=$(date)
+          export PATH=/usr/lib/ccache:$GITHUB_WORKSPACE/toolchain/bin:$PATH
+          make -j$(nproc --all) ${args} ares_defconfig all
+      
+      - name: Apply KernelPatch for KPM
+        if: ${{ inputs.enable_feature_kpm }}
+        working-directory: kernel/out/arch/arm64/boot
+        run: |
+          cp $GITHUB_WORKSPACE/sukisu_patch/kpm/patch_linux .
+          chmod +x patch_linux
+          ./patch_linux
+          mv oImage Image
+
+      - name: Pack Kernel using Magiskboot
+        working-directory: Magiskboot
+        run: |
+            tar -xvf boot.tar.gz
+            chmod +x magiskboot
+            ./magiskboot unpack boot.img
+            cp $GITHUB_WORKSPACE/kernel/out/arch/arm64/boot/Image ./kernel
+            ./magiskboot repack boot.img boot_ReSukiSU_${{ env.KSUVER }}.img
+
+      # ============ 新增: AnyKernel3 刷机包 ============
+      - name: Pack AnyKernel3
+        run: |
+          set -e
+          git clone --depth=1 https://github.com/osm0sis/AnyKernel3 AK3
+
+          cat > AK3/anykernel.sh <<EOF
+          ## AnyKernel setup
+          # begin build properties
+          kernel.string=ReSukiSU Kernel for K40GE (ares)
+          kernel.author=CI
+          kernel.version=${{ env.KSUVER }}-${{ env.DATE }}
+          # end build properties
+
+          ## AnyKernel install setup
+          # begin install
+          do.device_check=1
+          do.cmdline=0
+          do.installer=0
+          do.printk=0
+
+          device.name1=ares
+          device.name2=M2012K10C
+          # end install
+
+          # begin kernel setup
+          block=auto;
+          slot=auto;
+          # end kernel setup
+          EOF
+
+          # 放入内核镜像(与 Magiskboot 重打包使用同一份 Image, 含 KPM 补丁效果)
+          cp kernel/out/arch/arm64/boot/Image AK3/
+
+          cd AK3
+          zip -r9 ../AnyKernel3_ReSukiSU_${{ env.KSUVER }}.zip . -x ".git*" ".github*" "README*"
+          cd ..
+          ls -la AnyKernel3_ReSukiSU_${{ env.KSUVER }}.zip
+
+      # ============ 新增: SHA256 校验和 ============
+      - name: Generate SHA256
+        run: |
+          cd Magiskboot
+          sha256sum boot_ReSukiSU_${{ env.KSUVER }}.img > boot_ReSukiSU_${{ env.KSUVER }}.img.sha256
+          cd ..
+          sha256sum AnyKernel3_ReSukiSU_${{ env.KSUVER }}.zip > AnyKernel3_ReSukiSU_${{ env.KSUVER }}.zip.sha256
+          cat Magiskboot/*.sha256 *.sha256
+
+      - name: Upload repacked boot image
+        uses: actions/upload-artifact@v4
+        with:
+          name: K40GE_SukiSU_${{ env.KSUVER }}
+          path: |
+            Magiskboot/boot_ReSukiSU_${{ env.KSUVER }}.img
+            Magiskboot/boot_ReSukiSU_${{ env.KSUVER }}.img.sha256
+          compression-level: 9
+
+      # ============ 新增: 上传 AnyKernel3 刷机包 ============
+      - name: Upload AnyKernel3 zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: K40GE_AnyKernel3_${{ env.KSUVER }}
+          path: |
+            AnyKernel3_ReSukiSU_${{ env.KSUVER }}.zip
+            AnyKernel3_ReSukiSU_${{ env.KSUVER }}.zip.sha256
+          compression-level: 9
+
+      - name: Upload Logs
+        if: always()
+        uses: softprops/action-gh-release@v2
+        with: 
+          tag_name: logs
+          name: Workflow's log(latest)
+          body: "run ${{ github.run_number }} / ${{ inputs.release_tag }}"
+          files: artifacts/build.log
+          prerelease: true
+
+      - name: Upload rejects
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+           name: patch-rejects
+           path: '**/*.rej'
+           

@@ -132,6 +132,16 @@ jobs:
           path: Magiskboot/boot_ReSukiSU_${{ env.KSUVER }}.img
           compression-level: 9
 
+      - name: Upload Logs
+        if: always()
+        uses: softprops/action-gh-release@v2
+        with: 
+          tag_name: logs
+          name: Workflow's log(latest)
+          body: "run ${{ github.run_number }} / ${{ inputs.release_tag }}"
+          files: artifacts/build.log
+          prerelease: true
+
       - name: Upload rejects
         if: failure()
         uses: actions/upload-artifact@v4

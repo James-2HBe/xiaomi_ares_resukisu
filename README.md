@@ -15,5 +15,3 @@ Resukisu
 BBR
 NTSync(may work)
 --
-
-Thanks YangXin2026.For config.

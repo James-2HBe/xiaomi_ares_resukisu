@@ -105,30 +105,8 @@ jobs:
         run: |
           export KBUILD_BUILD_TIMESTAMP=$(date)
           export PATH=/usr/lib/ccache:$GITHUB_WORKSPACE/toolchain/bin:$PATH
+          LOG=$GITHUB_WROKSPACE/artifacts/build.log
           make -j$(nproc --all) ${args} ares_defconfig all
-
-          # ---- 日志捕获:先记录 runner 资源快照(排查 OOM / 磁盘满用) ----
-          LOG=$GITHUB_WORKSPACE/artifacts/build.log
-          mkdir -p "$(dirname "$LOG")"
-          {
-            echo "===== runner env $(date) ====="
-            echo "cpus: $(nproc --all)"
-            free -h
-            df -h
-            echo "===== ccache stats (before) ====="
-            ccache -s
-          } > "$LOG" 2>&1
-
-          # ---- 关键:pipefail 保证 make 失败时步骤整体失败,而不是被 tee 的退出码吞掉 ----
-          set -o pipefail
-          make -j$(nproc --all) ${args} ares_defconfig all 2>&1 | tee -a "$LOG"
-
-          {
-            echo "===== ccache stats (after) ====="
-            ccache -s
-            free -h
-            df -h
-          } >> "$LOG" 2>&1
       
       - name: Apply KernelPatch for KPM
         if: ${{ inputs.enable_feature_kpm }}

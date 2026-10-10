@@ -1,5 +1,6 @@
 # Build Kernel for Xiaomi POCO F3 GT / Redmi K40GE (ares) with KSU 
-# Only for Android 12/13
+# For Android all version.Except 17.
+# Change version must change dtb or boot.tar.gz
 
 ### Building Toolchain is from [Mandi-Sa/clang](https://github.com/Mandi-Sa/clang)
 ### magiskboot binary from [magisk_bins_ndk](https://github.com/xiaoxindada/magisk_bins_ndk)

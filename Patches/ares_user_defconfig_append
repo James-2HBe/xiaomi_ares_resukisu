@@ -4,6 +4,9 @@
 # Every symbol below was checked against this tree's Kconfig sources.
 # ASCII only, one symbol per line, no inline comments.
 
+CONFIG_EROFS_FS_PCPU_KTHREAD=y
+CONFIG_MTK_IO_BOOST=y
+CONFIG_MTK_PERFMGR_TOUCH_BOOST=y
 CONFIG_ZSWAP=y
 CONFIG_ZRAM=y
 CONFIG_ZRAM_LZ4_COMPRESS=y

@@ -97,8 +97,6 @@ jobs:
           cat $GITHUB_WORKSPACE/Patches/ares_user_defconfig_append >> $GITHUB_WORKSPACE/kernel/arch/arm64/configs/ares_defconfig
           echo "CONFIG_KSU=y" >> $GITHUB_WORKSPACE/kernel/arch/arm64/configs/ares_defconfig
           echo "CONFIG_KSU_MANUAL_HOOK=y" >> $GITHUB_WORKSPACE/kernel/arch/arm64/configs/ares_defconfig
-          echo "KSU_MULTI_MANAGER_SUPPORT=y" >> $GITHUB_WORKSPACE/kernel/arch/arm64/configs/ares_defconfig
-          echo "KSU_FULL_NAME_FORMAT=\"%TAG_NAME%-%KSU_VERSION%@%REPO_NAME%\"" >> $GITHUB_WORKSPACE/kernel/arch/arm64/configs/ares_defconfig
       
       - name: Build Kernel for K40GE
         working-directory: kernel

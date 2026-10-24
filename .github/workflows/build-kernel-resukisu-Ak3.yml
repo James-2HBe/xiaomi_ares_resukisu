@@ -47,6 +47,11 @@ jobs:
           restore-keys: |
             ccache-${{ runner.os }}-
 
+      - name: Setup ccache
+        run: |
+           mkdir -p "$GITHUB_WORKSPACE/.ccache"
+           echo "CCACHE_DIR=$GITHUB_WORKSPACE/.ccache" >> $GITHUB_ENV
+
       - uses: actions/checkout@v5
 
       - name: Get Kernel Source Code

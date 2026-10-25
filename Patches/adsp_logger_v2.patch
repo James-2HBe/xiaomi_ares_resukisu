@@ -1,0 +1,163 @@
+--- a/drivers/misc/mediatek/adsp/common/adsp_logger.c
++++ b/drivers/misc/mediatek/adsp/common/adsp_logger.c
+@@ -12,6 +12,7 @@
+ #include "adsp_platform_driver.h"
+ #include "adsp_core.h"
+ #include "adsp_logger.h"
++#include "adsp_reserved_mem.h"
+ 
+ #define PLT_LOG_ENABLE              0x504C5402 /* magic */
+ #define MINIMUM_LOG_BUF_SIZE        0x10000 /* 64k */
+@@ -126,6 +127,84 @@
+ }
+ 
+ /*
++ * Kernel-side delayed work for the ADSP logger IPI.
++ *
++ * pdata->log_ctrl points into the "reserve-memory-adsp_share" region, which
++ * adsp_init_reserve_memory() maps once with ioremap_wc() and then subdivides
++ * (see drivers/misc/mediatek/adsp/mt6885/adsp_reserved_mem.c).
++ *
++ * On MT6893 that region stops accepting writes from the AP once the ADSP
++ * firmware has been released (ADSP DRAM remapping / EMI MPU take over).
++ * schedule_delayed_work() ends up in test_and_set_bit(), which is an atomic
++ * read-modify-write; on this memory it raises a Synchronous External Abort
++ * (ESR 0x96000010) -> "Fatal exception in interrupt" -> panic about 1.19 s
++ * after boot, which the user sees as an endless reboot.
++ *
++ * Keeping the work_struct in normal kernel memory means the IPI handler never
++ * touches the shared buffer, so the abort cannot happen any more.
++ *
++ * One slot per ADSP core, mirroring the original per-core
++ * pdata->log_ctrl->work: schedule_delayed_work() is a no-op on an
++ * already-pending work item, so a single shared slot could silently
++ * drop one core's init when both IPIs arrive close together.
++ */
++struct adsp_logger_job {
++	struct delayed_work work;
++	struct adsp_priv *pdata;
++};
++
++static struct adsp_logger_job adsp_logger_jobs[ADSP_CORE_TOTAL];
++static bool adsp_logger_job_inited;
++
++/* Replacement for adsp_logger_init0_cb()/adsp_logger_init1_cb(). It only reads
++ * the kernel-side reserve-memory table and pushes an IPI, so it is safe to run
++ * from a workqueue without touching the ADSP shared memory.
++ */
++static void adsp_logger_job_cb(struct work_struct *ws)
++{
++	struct adsp_logger_job *job = container_of(to_delayed_work(ws),
++		struct adsp_logger_job,
++		work);
++	struct adsp_priv *pdata = job->pdata;
++	unsigned int info[6];
++	int ret;
++
++	if (!pdata) {
++		pr_err("%s, pdata is NULL\n", __func__);
++		return;
++	}
++
++	if (pdata->id == ADSP_A_ID) {
++		info[0] = adsp_get_reserve_mem_phys(ADSP_A_LOGGER_MEM_ID);
++		info[1] = adsp_get_reserve_mem_size(ADSP_A_LOGGER_MEM_ID);
++		info[2] = adsp_get_reserve_mem_phys(ADSP_A_CORE_DUMP_MEM_ID);
++		info[3] = adsp_get_reserve_mem_size(ADSP_A_CORE_DUMP_MEM_ID);
++		info[4] = adsp_get_reserve_mem_phys(ADSP_A_DEBUG_DUMP_MEM_ID);
++		info[5] = adsp_get_reserve_mem_size(ADSP_A_DEBUG_DUMP_MEM_ID);
++
++		_adsp_register_feature(ADSP_A_ID, ADSP_LOGGER_FEATURE_ID, 0);
++		ret = adsp_push_message(ADSP_IPI_LOGGER_INIT, (void *)info,
++			sizeof(info), 20, ADSP_A_ID);
++		_adsp_deregister_feature(ADSP_A_ID, ADSP_LOGGER_FEATURE_ID, 0);
++	} else {
++		info[0] = adsp_get_reserve_mem_phys(ADSP_B_LOGGER_MEM_ID);
++		info[1] = adsp_get_reserve_mem_size(ADSP_B_LOGGER_MEM_ID);
++		info[2] = adsp_get_reserve_mem_phys(ADSP_B_CORE_DUMP_MEM_ID);
++		info[3] = adsp_get_reserve_mem_size(ADSP_B_CORE_DUMP_MEM_ID);
++		info[4] = adsp_get_reserve_mem_phys(ADSP_B_DEBUG_DUMP_MEM_ID);
++		info[5] = adsp_get_reserve_mem_size(ADSP_B_DEBUG_DUMP_MEM_ID);
++
++		_adsp_register_feature(ADSP_B_ID, ADSP_LOGGER_FEATURE_ID, 0);
++		ret = adsp_push_message(ADSP_IPI_LOGGER_INIT, (void *)info,
++			sizeof(info), 20, ADSP_B_ID);
++		_adsp_deregister_feature(ADSP_B_ID, ADSP_LOGGER_FEATURE_ID, 0);
++	}
++
++	if (ret != ADSP_IPI_DONE)
++		pr_err("[ADSP]logger initial fail, ipi ret=%d\n", ret);
++}
++
++/*
+  * IPI for logger init
+  * @param id:   IPI id
+  * @param data: IPI data
+@@ -153,13 +232,25 @@
+ 			*(ptr + 6), *(ptr + 7));
+ 	}
+ 
+-	/* send work to initialize logger*/
+-	schedule_delayed_work(&pdata->log_ctrl->work, delay);
++	/* send work to initialize logger.
++	 * NOTE: the work item is NOT pdata->log_ctrl->work any more. That
++	 * field lives in the ioremap_wc() ADSP shared region and the atomic
++	 * update inside schedule_delayed_work() aborts on it, see the comment
++	 * on struct adsp_logger_job above.
++	 */
++	if (pdata->id < 0 || pdata->id >= ADSP_CORE_TOTAL) {
++		pr_err("%s, bad core id %d\n", __func__, pdata->id);
++		return;
++	}
++
++	/* one slot per core, exactly like the original pdata->log_ctrl->work */
++	adsp_logger_jobs[pdata->id].pdata = pdata;
++	schedule_delayed_work(&adsp_logger_jobs[pdata->id].work, delay);
+ }
+ 
+ /*
+  * init adsp logger dram ctrl structure
+- * @return:     0: success, otherwise: fail
++ * @return:     pointer to the log control block, or NULL on failure
+  */
+ struct log_ctrl_s *adsp_logger_init(int mem_id)
+ {
+@@ -169,10 +260,19 @@
+ 	struct log_ctrl_s *ctrl = (struct log_ctrl_s *)addr;
+ 	struct buffer_info_s *buf_info;
+ 
++	pr_info("%s(), mem_id=%d, addr=%p, size=%zu\n",
++		__func__, mem_id, addr, size);
++
+ 	if (!addr || size < MINIMUM_LOG_BUF_SIZE) {
+ 		pr_err("%s(), failed addr=%p, size=%zu\n", __func__,
+ 			addr, size);
+-		return addr;
++		/* The original code returned "addr" here. A non-NULL but
++		 * unusable pointer makes the caller's "if (pdata->log_ctrl)"
++		 * guard pass, so INIT_DELAYED_WORK() would happily write into
++		 * the broken region. Return NULL so both the caller and the
++		 * IPI handler bail out instead.
++		 */
++		return NULL;
+ 	}
+ 	memset(addr, 0, size);
+ 
+@@ -194,6 +294,17 @@
+ 	ctrl->buff_ofs = last_ofs;
+ 	ctrl->buff_size = size - last_ofs;
+ 
++	/* Prepare the kernel-side work items before any IPI can arrive.
++	 * adsp_logger_init() runs twice (once per core), hence the guard.
++	 */
++	if (!adsp_logger_job_inited) {
++		int job_id;
++		for (job_id = 0; job_id < ADSP_CORE_TOTAL; job_id++)
++			INIT_DELAYED_WORK(&adsp_logger_jobs[job_id].work,
++				      adsp_logger_job_cb);
++		adsp_logger_job_inited = true;
++	}
++
+ 	/* register logger ini IPI */
+ 	adsp_ipi_registration(ADSP_IPI_LOGGER_INIT, adsp_logger_init_handler,
+ 			      "logger_init");

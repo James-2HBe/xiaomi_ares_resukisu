@@ -65,9 +65,9 @@ jobs:
         run: |
           mkdir -p toolchain
           cd toolchain
-          wget -q https://github.com/Mandi-Sa/clang/releases/download/amd64-kernel-arm_static-23/llvm23.0.0-binutils2.45.1_amd64-kernel-arm_static-20260224.7z
-          7za x llvm23.0.0-binutils2.45.1_amd64-kernel-arm_static-20260224.7z
-          rm llvm23.0.0-binutils2.45.1_amd64-kernel-arm_static-20260224.7z
+          https://github.com/Mandi-Sa/clang/releases/download/amd64-full-toolchain_static-24/llvm24.0.0-binutils2.47_amd64-full-toolchain_static-20261008.7z
+          7za x llvm24.0.0-binutils2.47_amd64-full-toolchain_static-20261008.7z
+          rm -rf llvm24.0.0-binutils2.47_amd64-full-toolchain_static-20261008.7z
       
       - name: Set up ReSukiSU
         working-directory: kernel

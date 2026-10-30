@@ -1,9 +1,3 @@
-# ares (Redmi K40 Gaming / MT6893 / arm64 / 4.14.357) defconfig append
-# Target: Android 16 GSI, feature-rich but conflict-free.
-# Deduplicated against baseline ares_defconfig and against:
-# Every symbol below was checked against this tree's Kconfig sources.
-# ASCII only, one symbol per line, no inline comments.
-
 CONFIG_EROFS_FS_PCPU_KTHREAD=y
 CONFIG_MTK_IO_BOOST=y
 CONFIG_MTK_PERFMGR_TOUCH_BOOST=y

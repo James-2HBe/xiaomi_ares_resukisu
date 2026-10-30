@@ -37,7 +37,7 @@ jobs:
           remove-codeql: 'true'
 
       - name: Install Package
-        run: sudo apt update && sudo apt install -y p7zip-full git ccache
+        run: sudo apt update && sudo apt install -y p7zip-full git ccache wget2
 
       - name: Restore ccache
         uses: actions/cache@v4
@@ -65,7 +65,7 @@ jobs:
         run: |
           mkdir -p toolchain
           cd toolchain
-          https://github.com/Mandi-Sa/clang/releases/download/amd64-full-toolchain_static-24/llvm24.0.0-binutils2.47_amd64-full-toolchain_static-20261008.7z
+          wget2 https://github.com/Mandi-Sa/clang/releases/download/amd64-full-toolchain_static-24/llvm24.0.0-binutils2.47_amd64-full-toolchain_static-20261008.7z
           7za x llvm24.0.0-binutils2.47_amd64-full-toolchain_static-20261008.7z
           rm -rf llvm24.0.0-binutils2.47_amd64-full-toolchain_static-20261008.7z
       

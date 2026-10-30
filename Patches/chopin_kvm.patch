@@ -1,0 +1,323 @@
+--- a/drivers/misc/mediatek/adsp/common/adsp_logger.c
++++ b/drivers/misc/mediatek/adsp/common/adsp_logger.c
+@@ -12,6 +12,7 @@
+ #include "adsp_platform_driver.h"
+ #include "adsp_core.h"
+ #include "adsp_logger.h"
++#include "adsp_reserved_mem.h"
+ 
+ #define PLT_LOG_ENABLE              0x504C5402 /* magic */
+ #define MINIMUM_LOG_BUF_SIZE        0x10000 /* 64k */
+@@ -126,6 +127,84 @@
+ }
+ 
+ /*
++ * Kernel-side delayed work for the ADSP logger IPI.
++ *
++ * pdata->log_ctrl points into the "reserve-memory-adsp_share" region, which
++ * adsp_init_reserve_memory() maps once with ioremap_wc() and then subdivides
++ * (see drivers/misc/mediatek/adsp/mt6885/adsp_reserved_mem.c).
++ *
++ * On MT6893 that region stops accepting writes from the AP once the ADSP
++ * firmware has been released (ADSP DRAM remapping / EMI MPU take over).
++ * schedule_delayed_work() ends up in test_and_set_bit(), which is an atomic
++ * read-modify-write; on this memory it raises a Synchronous External Abort
++ * (ESR 0x96000010) -> "Fatal exception in interrupt" -> panic about 1.19 s
++ * after boot, which the user sees as an endless reboot.
++ *
++ * Keeping the work_struct in normal kernel memory means the IPI handler never
++ * touches the shared buffer, so the abort cannot happen any more.
++ *
++ * One slot per ADSP core, mirroring the original per-core
++ * pdata->log_ctrl->work: schedule_delayed_work() is a no-op on an
++ * already-pending work item, so a single shared slot could silently
++ * drop one core's init when both IPIs arrive close together.
++ */
++struct adsp_logger_job {
++	struct delayed_work work;
++	struct adsp_priv *pdata;
++};
++
++static struct adsp_logger_job adsp_logger_jobs[ADSP_CORE_TOTAL];
++static bool adsp_logger_job_inited;
++
++/* Replacement for adsp_logger_init0_cb()/adsp_logger_init1_cb(). It only reads
++ * the kernel-side reserve-memory table and pushes an IPI, so it is safe to run
++ * from a workqueue without touching the ADSP shared memory.
++ */
++static void adsp_logger_job_cb(struct work_struct *ws)
++{
++	struct adsp_logger_job *job = container_of(to_delayed_work(ws),
++		struct adsp_logger_job,
++		work);
++	struct adsp_priv *pdata = job->pdata;
++	unsigned int info[6];
++	int ret;
++
++	if (!pdata) {
++		pr_err("%s, pdata is NULL\n", __func__);
++		return;
++	}
++
++	if (pdata->id == ADSP_A_ID) {
++		info[0] = adsp_get_reserve_mem_phys(ADSP_A_LOGGER_MEM_ID);
++		info[1] = adsp_get_reserve_mem_size(ADSP_A_LOGGER_MEM_ID);
++		info[2] = adsp_get_reserve_mem_phys(ADSP_A_CORE_DUMP_MEM_ID);
++		info[3] = adsp_get_reserve_mem_size(ADSP_A_CORE_DUMP_MEM_ID);
++		info[4] = adsp_get_reserve_mem_phys(ADSP_A_DEBUG_DUMP_MEM_ID);
++		info[5] = adsp_get_reserve_mem_size(ADSP_A_DEBUG_DUMP_MEM_ID);
++
++		_adsp_register_feature(ADSP_A_ID, ADSP_LOGGER_FEATURE_ID, 0);
++		ret = adsp_push_message(ADSP_IPI_LOGGER_INIT, (void *)info,
++			sizeof(info), 20, ADSP_A_ID);
++		_adsp_deregister_feature(ADSP_A_ID, ADSP_LOGGER_FEATURE_ID, 0);
++	} else {
++		info[0] = adsp_get_reserve_mem_phys(ADSP_B_LOGGER_MEM_ID);
++		info[1] = adsp_get_reserve_mem_size(ADSP_B_LOGGER_MEM_ID);
++		info[2] = adsp_get_reserve_mem_phys(ADSP_B_CORE_DUMP_MEM_ID);
++		info[3] = adsp_get_reserve_mem_size(ADSP_B_CORE_DUMP_MEM_ID);
++		info[4] = adsp_get_reserve_mem_phys(ADSP_B_DEBUG_DUMP_MEM_ID);
++		info[5] = adsp_get_reserve_mem_size(ADSP_B_DEBUG_DUMP_MEM_ID);
++
++		_adsp_register_feature(ADSP_B_ID, ADSP_LOGGER_FEATURE_ID, 0);
++		ret = adsp_push_message(ADSP_IPI_LOGGER_INIT, (void *)info,
++			sizeof(info), 20, ADSP_B_ID);
++		_adsp_deregister_feature(ADSP_B_ID, ADSP_LOGGER_FEATURE_ID, 0);
++	}
++
++	if (ret != ADSP_IPI_DONE)
++		pr_err("[ADSP]logger initial fail, ipi ret=%d\n", ret);
++}
++
++/*
+  * IPI for logger init
+  * @param id:   IPI id
+  * @param data: IPI data
+@@ -153,13 +232,25 @@
+ 			*(ptr + 6), *(ptr + 7));
+ 	}
+ 
+-	/* send work to initialize logger*/
+-	schedule_delayed_work(&pdata->log_ctrl->work, delay);
++	/* send work to initialize logger.
++	 * NOTE: the work item is NOT pdata->log_ctrl->work any more. That
++	 * field lives in the ioremap_wc() ADSP shared region and the atomic
++	 * update inside schedule_delayed_work() aborts on it, see the comment
++	 * on struct adsp_logger_job above.
++	 */
++	if (pdata->id < 0 || pdata->id >= ADSP_CORE_TOTAL) {
++		pr_err("%s, bad core id %d\n", __func__, pdata->id);
++		return;
++	}
++
++	/* one slot per core, exactly like the original pdata->log_ctrl->work */
++	adsp_logger_jobs[pdata->id].pdata = pdata;
++	schedule_delayed_work(&adsp_logger_jobs[pdata->id].work, delay);
+ }
+ 
+ /*
+  * init adsp logger dram ctrl structure
+- * @return:     0: success, otherwise: fail
++ * @return:     pointer to the log control block, or NULL on failure
+  */
+ struct log_ctrl_s *adsp_logger_init(int mem_id)
+ {
+@@ -169,10 +260,19 @@
+ 	struct log_ctrl_s *ctrl = (struct log_ctrl_s *)addr;
+ 	struct buffer_info_s *buf_info;
+ 
++	pr_info("%s(), mem_id=%d, addr=%p, size=%zu\n",
++		__func__, mem_id, addr, size);
++
+ 	if (!addr || size < MINIMUM_LOG_BUF_SIZE) {
+ 		pr_err("%s(), failed addr=%p, size=%zu\n", __func__,
+ 			addr, size);
+-		return addr;
++		/* The original code returned "addr" here. A non-NULL but
++		 * unusable pointer makes the caller's "if (pdata->log_ctrl)"
++		 * guard pass, so INIT_DELAYED_WORK() would happily write into
++		 * the broken region. Return NULL so both the caller and the
++		 * IPI handler bail out instead.
++		 */
++		return NULL;
+ 	}
+ 	memset(addr, 0, size);
+ 
+@@ -194,6 +294,17 @@
+ 	ctrl->buff_ofs = last_ofs;
+ 	ctrl->buff_size = size - last_ofs;
+ 
++	/* Prepare the kernel-side work items before any IPI can arrive.
++	 * adsp_logger_init() runs twice (once per core), hence the guard.
++	 */
++	if (!adsp_logger_job_inited) {
++		int job_id;
++		for (job_id = 0; job_id < ADSP_CORE_TOTAL; job_id++)
++			INIT_DELAYED_WORK(&adsp_logger_jobs[job_id].work,
++				      adsp_logger_job_cb);
++		adsp_logger_job_inited = true;
++	}
++
+ 	/* register logger ini IPI */
+ 	adsp_ipi_registration(ADSP_IPI_LOGGER_INIT, adsp_logger_init_handler,
+ 			      "logger_init");
+--- a/drivers/misc/mediatek/connectivity/wlan/core/gen4m/mgmt/rlm_domain.c
++++ b/drivers/misc/mediatek/connectivity/wlan/core/gen4m/mgmt/rlm_domain.c
+@@ -395,9 +395,9 @@
+ 	},
+ };
+ 
+-static const int8_t gTx_Pwr_Limit_2g_Ch[] = {
++static const uint8_t gTx_Pwr_Limit_2g_Ch[] = {
+ 	1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14};
+-static const int8_t gTx_Pwr_Limit_5g_Ch[] = {
++static const uint8_t gTx_Pwr_Limit_5g_Ch[] = {
+ 	36, 38, 40, 42, 44, 46, 48, 50, 52, 54, 56, 58, 60, 62, 64, 100, 102,
+ 	104, 106, 108, 110, 112, 114, 116, 118, 120, 122, 124, 126, 128, 132,
+ 	134, 136, 138, 140, 142, 144, 149, 151, 153, 155, 157, 159, 161, 165};
+@@ -3846,7 +3846,7 @@
+ 	uint8_t ch_idx = 0;
+ 	uint8_t band_idx = 0;
+ 	uint8_t ch_num = 0;
+-	const int8_t *prChannelList = NULL;
++	const uint8_t *prChannelList = NULL;
+ 	struct TX_PWR_LIMIT_DATA *pTxPwrLimitData = NULL;
+ 	struct CHANNEL_TX_PWR_LIMIT *prChTxPwrLimit = NULL;
+ 
+@@ -3920,7 +3920,7 @@
+ 	uint8_t ch_cnt = 0;
+ 	uint8_t ch_idx = 0;
+ 	uint8_t band_idx = 0;
+-	const int8_t *prChannelList = NULL;
++	const uint8_t *prChannelList = NULL;
+ 	uint32_t rStatus;
+ 	uint32_t u4SetQueryInfoLen;
+ 	uint32_t u4SetCmdTableMaxSize[KAL_NUM_BANDS] = {0};
+@@ -4063,7 +4063,7 @@
+ 	uint8_t ch_cnt = 0;
+ 	uint8_t ch_idx = 0;
+ 	uint8_t band_idx = 0;
+-	const int8_t *prChannelList = NULL;
++	const uint8_t *prChannelList = NULL;
+ 	uint32_t u4SetCmdTableMaxSize[KAL_NUM_BANDS] = {0};
+ 	uint32_t u4SetCountryTxPwrLimitCmdSize =
+ 		sizeof(struct CMD_SET_TXPOWER_COUNTRY_TX_POWER_LIMIT_PER_RATE);
+@@ -4221,7 +4221,7 @@
+ 	uint8_t ucBandIdx = 0;
+ 	uint8_t ucAisIdx = 0;
+ 	uint8_t ucCnt = 0;
+-	const int8_t *prChannelList = NULL;
++	const uint8_t *prChannelList = NULL;
+ 	uint32_t u4SetCmdSize = sizeof(struct CMD_TXPWR_TXBF_SET_BACKOFF);
+ 	struct CMD_TXPWR_TXBF_CHANNEL_BACKOFF *prChTxBfBackoff = NULL;
+ 
+--- a/fs/udf/balloc.c
++++ b/fs/udf/balloc.c
+@@ -140,6 +140,7 @@
+ 	unsigned long i;
+ 	int bitmap_nr;
+ 	unsigned long overflow;
++	struct udf_part_map *partmap;
+ 
+ 	mutex_lock(&sbi->s_alloc_mutex);
+ 	partmap = &sbi->s_partmaps[bloc->partitionReferenceNum];
+@@ -378,6 +379,7 @@
+ 	struct extent_position oepos, epos;
+ 	int8_t etype;
+ 	struct udf_inode_info *iinfo;
++	struct udf_part_map *partmap;
+ 
+ 	mutex_lock(&sbi->s_alloc_mutex);
+ 	partmap = &sbi->s_partmaps[bloc->partitionReferenceNum];
+--- a/net/netfilter/nft_socket.c
++++ b/net/netfilter/nft_socket.c
+@@ -1,10 +1,31 @@
+ /* SPDX-License-Identifier: GPL-2.0 */
++/*
++ * nf_tables socket match module
++ *
++ * === 4.14 backport 适配说明 ===
++ * 原文件取自 5.x 内核，直接放在 4.14 上会产生 16 个编译错误。
++ * 本文件做了 3 处适配（均标有 "4.14:" 注释）：
++ *   1. include 顺序/补齐 —— nf_socket.h 自身不含依赖头文件
++ *   2. ctx->family       —— 4.14 的 struct nft_ctx 没有 family 成员
++ *   3. 寄存器解析        —— 4.14 用 nft_parse_register_store() 一步完成
++ */
+ #include <linux/module.h>
+ #include <linux/netfilter/nf_tables.h>
+ #include <net/netfilter/nf_tables.h>
+ #include <net/netfilter/nf_tables_core.h>
++
++/*
++ * 4.14: nf_socket.h 里用到 sk->sk_state / TCP_TIME_WAIT / TCP_NEW_SYN_RECV /
++ * inet_twsk() / inet_rsk() / inet_reqsk() / inet_sk()，但它自己没有包含
++ * 对应头文件，靠调用方"碰巧先包含了"才能过 —— 这就是 nf_socket_ipv4.c 能编过、
++ * nft_socket.c 编不过的原因。必须把这些放在 nf_socket.h 之前。
++ */
++#include <net/sock.h>			/* struct sock 完整定义 */
++#include <net/tcp_states.h>		/* TCP_TIME_WAIT / TCP_NEW_SYN_RECV */
++#include <net/inet_sock.h>		/* inet_sk() */
++#include <net/inet_timewait_sock.h>	/* inet_twsk() */
++#include <net/request_sock.h>		/* inet_reqsk() / inet_rsk() */
+ #include <net/netfilter/nf_socket.h>
+-#include <net/inet_sock.h>
+ 
+ struct nft_socket {
+ 	enum nft_socket_keys		key:8;
+@@ -13,6 +34,17 @@
+ 	};
+ };
+ 
++/*
++ * 4.14: struct nft_ctx 的定义是 { net, afi, table, chain, nla, portid, seq,
++ * report }，没有 family 成员；family 要走 afi->family（struct nft_af_info
++ * 才有 int family）。
++ *
++ * 如果你的这棵树已经 backport 了 family 成员（编译会报 "no member named 'afi'"），
++ * 把下面这一行改成：
++ *     #define nft_socket_ctx_family(ctx)  ((ctx)->family)
++ */
++#define nft_socket_ctx_family(ctx)	((ctx)->afi->family)
++
+ static void nft_socket_eval(const struct nft_expr *expr,
+ 			    struct nft_regs *regs,
+ 			    const struct nft_pktinfo *pkt)
+@@ -67,11 +99,13 @@
+ {
+ 	struct nft_socket *priv = nft_expr_priv(expr);
+ 	unsigned int len;
++	u8 dreg;
++	int err;
+ 
+ 	if (!tb[NFTA_SOCKET_DREG] || !tb[NFTA_SOCKET_KEY])
+ 		return -EINVAL;
+ 
+-	switch(ctx->family) {
++	switch (nft_socket_ctx_family(ctx)) {
+ 	case NFPROTO_IPV4:
+ #if IS_ENABLED(CONFIG_NF_SOCKET_IPV6)
+ 	case NFPROTO_IPV6:
+@@ -91,9 +125,20 @@
+ 		return -EOPNOTSUPP;
+ 	}
+ 
+-	priv->dreg = nft_parse_register(tb[NFTA_SOCKET_DREG]);
+-	return nft_validate_register_store(ctx, priv->dreg, NULL,
+-					   NFT_DATA_VALUE, len);
++	/*
++	 * 4.14: 这棵树没有 nft_parse_register() 也没有 nft_validate_register_store()
++	 * （nf_tables.h 里提供的是 nft_parse_register_store()，它内部已含校验）。
++	 *
++	 * 注意 priv->dreg 是位域（dreg:8），位域不能取地址，
++	 * 所以先解析到局部变量 dreg，再赋回 priv->dreg。
++	 */
++	err = nft_parse_register_store(ctx, tb[NFTA_SOCKET_DREG], &dreg,
++				       NULL, NFT_DATA_VALUE, len);
++	if (err < 0)
++		return err;
++	priv->dreg = dreg;
++
++	return 0;
+ }
+ 
+ static int nft_socket_dump(struct sk_buff *skb,

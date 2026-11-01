@@ -11,7 +11,7 @@ on:
       SOURCECODE_BRANCH:
         description: '源码分支名称或修订版'
         required: true
-        default: 'chopin_kvm'
+        default: 'U-dev'
 
 jobs:
   build:
@@ -57,7 +57,7 @@ jobs:
       - name: Get Kernel Source Code
         uses: actions/checkout@v5
         with:
-          repository: James-2HBe/kernel_mt6893
+          repository: MerCuJerry/android_kernel_aresin
           ref: ${{ inputs.SOURCECODE_BRANCH }}
           path: kernel
       

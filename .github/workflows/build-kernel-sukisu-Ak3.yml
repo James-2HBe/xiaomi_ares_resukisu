@@ -1,4 +1,4 @@
-name: Build Kernel -- ReSukiSU --Ak3
+name: Build Kernel -- SukiSU --Ak3
 
 on:
   workflow_dispatch:

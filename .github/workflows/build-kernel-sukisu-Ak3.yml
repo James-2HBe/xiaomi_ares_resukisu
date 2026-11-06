@@ -37,7 +37,7 @@ jobs:
           remove-codeql: 'true'
 
       - name: Install Package
-        run: sudo apt update && sudo apt install -y p7zip-full git ccache wget2
+        run: sudo apt update && sudo apt install -y p7zip-full git ccache wget2 python
 
       - name: Restore ccache
         uses: actions/cache@v4
@@ -69,7 +69,7 @@ jobs:
           7za x llvm24.0.0-binutils2.47_amd64-full-toolchain_static-20261008.7z
           rm -rf llvm24.0.0-binutils2.47_amd64-full-toolchain_static-20261008.7z
       
-      - name: Set up ReSukiSU
+      - name: Set up SukiSU
         working-directory: kernel
         run: |
           echo DATE=$(date +%F) >> $GITHUB_ENV
@@ -82,6 +82,11 @@ jobs:
           patch -p1 < $GITHUB_WORKSPACE/Patches/static-symbol-export.patch
           patch -p1 < $GITHUB_WORKSPACE/Patches/fix_restore_cgroup_file_prefix_handling.patch
           patch -p1 < $GITHUB_WORKSPACE/Patches/chopin_kvm.patch
+
+      - name: Patch SukiSU for Linux 4.14
+        working-directory: kernel
+        run: python3 $GITHUB_WORKSPACE/Patches/patch_ksu_414.py drivers/kernelsu
+
 
       - name: Setup BBG
         run: |

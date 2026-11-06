@@ -73,7 +73,7 @@ jobs:
         working-directory: kernel
         run: |
           echo DATE=$(date +%F) >> $GITHUB_ENV
-          curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh" | bash
+          curl -LSs "https://raw.githubusercontent.com/Baka-SU/BakaSU/main/kernel/setup.sh" | bash
 
       - name: Patch Kernel
         working-directory: kernel
